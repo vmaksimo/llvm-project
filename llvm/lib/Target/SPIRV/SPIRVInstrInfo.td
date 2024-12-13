@@ -530,8 +530,24 @@ defm OpISubBorrow: BinOpTypedGen<"OpISubBorrow", 150, subc, 0, 1>;
 def OpUMulExtended: BinOp<"OpUMulExtended", 151>;
 def OpSMulExtended: BinOp<"OpSMulExtended", 152>;
 
-def OpSDot: BinOp<"OpSDot", 4450>;
-def OpUDot: BinOp<"OpUDot", 4451>;
+// def OpSDotKHR: BinOp<"OpSDotKHR", 4450>;
+// def OpUDotKHR: BinOp<"OpUDotKHR", 4451>;
+// def OpSUDotKHR: BinOp<"OpSUDotKHR", 4452>;
+// def OpSDotAccSatKHR: BinOp<"OpSDotAccSatKHR", 4453>;
+// def OpUDotAccSatKHR: BinOp<"OpUDotAccSatKHR", 4454>;
+// def OpSUDotAccSatKHR: BinOp<"OpSUDotAccSatKHR", 4455>;
+def OpSDotKHR: Op<4450, (outs ID:$res), (ins TYPE:$type, ID:$vec1, ID:$vec2, variable_ops),
+                  "$res = OpSDotKHR $type $vec1 $vec2">;
+def OpUDotKHR: Op<4451, (outs ID:$res), (ins TYPE:$type, ID:$vec1, ID:$vec2, variable_ops),
+                  "$res = OpUDotKHR $type $vec1 $vec2">;
+def OpSUDotKHR: Op<4452, (outs ID:$res), (ins TYPE:$type, ID:$vec1, ID:$vec2, variable_ops),
+                  "$res = OpSUDotKHR $type $vec1 $vec2">;
+def OpSDotAccSatKHR: Op<4453, (outs ID:$res), (ins TYPE:$type, ID:$vec1, ID:$vec2, ID:$acc, variable_ops),
+                  "$res = OpSDotAccSatKHR $type $vec1 $vec2 $acc">;
+def OpUDotAccSatKHR: Op<4454, (outs ID:$res), (ins TYPE:$type, ID:$vec1, ID:$vec2, ID:$acc, variable_ops),
+                  "$res = OpUDotAccSatKHR $type $vec1 $vec2 $acc">;
+def OpSUDotAccSatKHR: Op<4455, (outs ID:$res), (ins TYPE:$type, ID:$vec1, ID:$vec2, ID:$acc, variable_ops),
+                  "$res = OpSUDotAccSatKHR $type $vec1 $vec2 $acc">;
 
 // 3.42.14 Bit Instructions
 

@@ -132,6 +132,16 @@ struct ImageQueryBuiltin {
 #define GET_ImageQueryBuiltins_DECL
 #define GET_ImageQueryBuiltins_IMPL
 
+struct IntegerDotProductBuiltin {
+  StringRef Name;
+  uint32_t Opcode;
+  bool IsAccSat;
+  bool IsSwapReq;
+};
+
+#define GET_IntegerDotProductBuiltins_DECL
+#define GET_IntegerDotProductBuiltins_IMPL
+
 struct ConvertBuiltin {
   StringRef Name;
   InstructionSet::InstructionSet Set;
@@ -1585,8 +1595,36 @@ static bool generateDotOrFMulInst(const SPIRV::IncomingCall *Call,
   if (Call->isSpirvOp())
     return buildOpFromWrapper(MIRBuilder, SPIRV::OpDot, Call,
                               GR->getSPIRVTypeID(Call->ReturnType));
-  unsigned Opcode = GR->getSPIRVTypeForVReg(Call->Arguments[0])->getOpcode();
+  SPIRVType* Tmp = GR->getSPIRVTypeForVReg(Call->Arguments[0]);
+  unsigned Opcode = Tmp->getOpcode();
   bool IsVec = Opcode == SPIRV::OpTypeVector;
+
+  const auto *ST =
+      static_cast<const SPIRVSubtarget *>(&MIRBuilder.getMF().getSubtarget());
+  if (ST->canUseExtension(SPIRV::Extension::SPV_KHR_integer_dot_product) ||
+      ST->isAtLeastSPIRVVer(VersionTuple(1, 6))) {
+    const SPIRV::DemangledBuiltin *Builtin = Call->Builtin;
+    // What if it's just a dot without suffixes?
+    const SPIRV::IntegerDotProductBuiltin *IntDot =
+        SPIRV::lookupIntegerDotProductBuiltin(Builtin->Name);
+    uint32_t OC = IntDot->Opcode;
+    MachineInstrBuilder MIB = MIRBuilder.buildInstr(OC)
+                                  .addDef(Call->ReturnRegister)
+                                  .addUse(GR->getSPIRVTypeID(Call->ReturnType));
+    if (IntDot->IsSwapReq) {
+      MIB.addUse(Call->Arguments[1]);
+      MIB.addUse(Call->Arguments[0]);
+      for (size_t i = 2; i < Call->Arguments.size(); ++i)
+        MIB.addUse(Call->Arguments[i]);
+    } else {
+      for (size_t i = 0; i < Call->Arguments.size(); ++i)
+        MIB.addUse(Call->Arguments[i]);
+    }
+    // Add Packed Vector Format if arguments are scalar
+    if (!IsVec)
+      MIB.addImm(0);
+    return true;
+  }
   // Use OpDot only in case of vector args and OpFMul in case of scalar args.
   MIRBuilder.buildInstr(IsVec ? SPIRV::OpDot : SPIRV::OpFMulS)
       .addDef(Call->ReturnRegister)
@@ -2582,6 +2620,10 @@ mapBuiltinToOpcode(const StringRef DemangledCall,
     if (const auto *R = SPIRV::lookupGroupUniformBuiltin(Call->Builtin->Name))
       return std::make_tuple(Call->Builtin->Group, R->Opcode, 0);
     break;
+  case SPIRV::IntegerDot:
+    if (const auto *R = SPIRV::lookupIntegerDotProductBuiltin(Call->Builtin->Name))
+      return std::make_tuple(Call->Builtin->Group, R->Opcode, 0);
+    break;
   case SPIRV::WriteImage:
     return std::make_tuple(Call->Builtin->Group, SPIRV::OpImageWrite, 0);
   case SPIRV::Select:
@@ -2641,6 +2683,7 @@ std::optional<bool> lowerBuiltin(const StringRef DemangledCall,
   case SPIRV::CastToPtr:
     return generateCastToPtrInst(Call.get(), MIRBuilder);
   case SPIRV::Dot:
+  case SPIRV::IntegerDot:
     return generateDotOrFMulInst(Call.get(), MIRBuilder, GR);
   case SPIRV::Wave:
     return generateWaveInst(Call.get(), MIRBuilder, GR);

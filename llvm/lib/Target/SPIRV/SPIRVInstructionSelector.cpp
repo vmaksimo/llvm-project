@@ -1847,7 +1847,7 @@ bool SPIRVInstructionSelector::selectIntegerDot(Register ResVReg,
   assert(I.getOperand(3).isReg());
   MachineBasicBlock &BB = *I.getParent();
 
-  auto DotOp = Signed ? SPIRV::OpSDot : SPIRV::OpUDot;
+  auto DotOp = Signed ? SPIRV::OpSDotKHR : SPIRV::OpUDotKHR;
   return BuildMI(BB, I, I.getDebugLoc(), TII.get(DotOp))
       .addDef(ResVReg)
       .addUse(GR.getSPIRVTypeID(ResType))
@@ -1927,7 +1927,7 @@ bool SPIRVInstructionSelector::selectDot4AddPacked(Register ResVReg,
   assert(I.getOperand(4).isReg());
   MachineBasicBlock &BB = *I.getParent();
 
-  auto DotOp = Signed ? SPIRV::OpSDot : SPIRV::OpUDot;
+  auto DotOp = Signed ? SPIRV::OpSDotKHR : SPIRV::OpUDotKHR;
   Register Dot = MRI->createVirtualRegister(GR.getRegClass(ResType));
   bool Result = BuildMI(BB, I, I.getDebugLoc(), TII.get(DotOp))
                     .addDef(Dot)
@@ -1944,7 +1944,7 @@ bool SPIRVInstructionSelector::selectDot4AddPacked(Register ResVReg,
                        .constrainAllUses(TII, TRI, RBI);
 }
 
-// Since pre-1.6 SPIRV has no DotProductInput4x8BitPacked implementation,
+// Since pre-1.6 SPIRV has no DotProductInput4x8BitPackedKHR implementation,
 // extract the elements of the packed inputs, multiply them and add the result
 // to the accumulator.
 template <bool Signed>
