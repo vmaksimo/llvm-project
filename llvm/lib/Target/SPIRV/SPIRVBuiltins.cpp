@@ -1596,12 +1596,8 @@ static bool generateDotOrFMulInst(const StringRef DemangledCall,
     return buildOpFromWrapper(MIRBuilder, SPIRV::OpDot, Call,
                               GR->getSPIRVTypeID(Call->ReturnType));
 
-  SPIRVType *Tmp = GR->getSPIRVTypeForVReg(Call->Arguments[0]);
-  bool IsVec = Tmp->getOpcode() == SPIRV::OpTypeVector;
-  SPIRVType *VecTy =
-      IsVec ? GR->getSPIRVTypeForVReg(Tmp->getOperand(1).getReg()) : nullptr;
-
-
+  bool IsVec = GR->getSPIRVTypeForVReg(Call->Arguments[0])->getOpcode() ==
+               SPIRV::OpTypeVector;
   // Use OpDot only in case of vector args and OpFMul in case of scalar args.
   uint32_t OC = IsVec ? SPIRV::OpDot : SPIRV::OpFMulS;
   bool IsSwapReq = false;
@@ -1614,49 +1610,38 @@ static bool generateDotOrFMulInst(const StringRef DemangledCall,
     const SPIRV::DemangledBuiltin *Builtin = Call->Builtin;
     const SPIRV::IntegerDotProductBuiltin *IntDot =
         SPIRV::lookupIntegerDotProductBuiltin(Builtin->Name);
-
     if (IntDot) {
       OC = IntDot->Opcode;
       IsSwapReq = IntDot->IsSwapReq;
-      // // Add Packed Vector Format if arguments are scalar
-      // if (!IsVec)
-      //   MIB.addImm(0);
-      // return true;
-    }
-  }
+    } else if (IsVec) {
+      // Handling "dot" and "dot_acc_sat" builtins which use vectors of
+      // integers.
+      LLVMContext &Ctx = MIRBuilder.getContext();
+      SmallVector<StringRef, 10> TypeStrs;
+      SPIRV::parseBuiltinTypeStr(TypeStrs, DemangledCall, Ctx);
+      bool IsFirstSigned = TypeStrs[0].trim()[0] != 'u';
+      bool IsSecondSigned = TypeStrs[1].trim()[0] != 'u';
 
-  // Use OpDot only in case of vector args and OpFMul in case of scalar args.
-  // uint32_t OC = IsVec ? SPIRV::OpDot : SPIRV::OpFMulS;
-  // bool IsSwapReq = false;
-
-  if (IsVec && VecTy->getOpcode() == SPIRV::OpTypeInt &&
-      (ST->canUseExtension(SPIRV::Extension::SPV_KHR_integer_dot_product) ||
-       ST->isAtLeastSPIRVVer(VersionTuple(1, 6)))) {
-    LLVMContext &Ctx = MIRBuilder.getContext();
-    SmallVector<StringRef, 10> TypeStrs;
-    SPIRV::parseBuiltinTypeStr(TypeStrs, DemangledCall, Ctx);
-    bool IsFirstSigned = TypeStrs[0].trim()[0] != 'u';
-    bool IsSecondSigned = TypeStrs[1].trim()[0] != 'u';
-
-    if (Call->BuiltinName == "dot") {
-      if (IsFirstSigned && IsSecondSigned)
-        OC = SPIRV::OpSDot;
-      else if (!IsFirstSigned && !IsSecondSigned)
-        OC = SPIRV::OpUDot;
-      else {
-        OC = SPIRV::OpSUDot;
-        if (!IsFirstSigned)
-          IsSwapReq = true;
-      }
-    } else if (Call->BuiltinName == "dot_acc_sat") {
-      if (IsFirstSigned && IsSecondSigned)
-        OC = SPIRV::OpSDotAccSat;
-      else if (!IsFirstSigned && !IsSecondSigned)
-        OC = SPIRV::OpUDotAccSat;
-      else {
-        OC = SPIRV::OpSUDotAccSat;
-        if (!IsFirstSigned)
-          IsSwapReq = true;
+      if (Call->BuiltinName == "dot") {
+        if (IsFirstSigned && IsSecondSigned)
+          OC = SPIRV::OpSDot;
+        else if (!IsFirstSigned && !IsSecondSigned)
+          OC = SPIRV::OpUDot;
+        else {
+          OC = SPIRV::OpSUDot;
+          if (!IsFirstSigned)
+            IsSwapReq = true;
+        }
+      } else if (Call->BuiltinName == "dot_acc_sat") {
+        if (IsFirstSigned && IsSecondSigned)
+          OC = SPIRV::OpSDotAccSat;
+        else if (!IsFirstSigned && !IsSecondSigned)
+          OC = SPIRV::OpUDotAccSat;
+        else {
+          OC = SPIRV::OpSUDotAccSat;
+          if (!IsFirstSigned)
+            IsSwapReq = true;
+        }
       }
     }
   }
@@ -2671,7 +2656,8 @@ mapBuiltinToOpcode(const StringRef DemangledCall,
       return std::make_tuple(Call->Builtin->Group, R->Opcode, 0);
     break;
   case SPIRV::IntegerDot:
-    if (const auto *R = SPIRV::lookupIntegerDotProductBuiltin(Call->Builtin->Name))
+    if (const auto *R =
+            SPIRV::lookupIntegerDotProductBuiltin(Call->Builtin->Name))
       return std::make_tuple(Call->Builtin->Group, R->Opcode, 0);
     break;
   case SPIRV::WriteImage:
