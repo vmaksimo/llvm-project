@@ -1589,48 +1589,78 @@ static bool generateCastToPtrInst(const SPIRV::IncomingCall *Call,
   return true;
 }
 
-static bool generateDotOrFMulInst(const SPIRV::IncomingCall *Call,
+static bool generateDotOrFMulInst(const StringRef DemangledCall,
+                                  const SPIRV::IncomingCall *Call,
                                   MachineIRBuilder &MIRBuilder,
                                   SPIRVGlobalRegistry *GR) {
   if (Call->isSpirvOp())
     return buildOpFromWrapper(MIRBuilder, SPIRV::OpDot, Call,
                               GR->getSPIRVTypeID(Call->ReturnType));
-  SPIRVType* Tmp = GR->getSPIRVTypeForVReg(Call->Arguments[0]);
+  SPIRVType *Tmp = GR->getSPIRVTypeForVReg(Call->Arguments[0]);
   unsigned Opcode = Tmp->getOpcode();
   bool IsVec = Opcode == SPIRV::OpTypeVector;
+  SPIRVType *VecTy = nullptr;
+  if (IsVec)
+    VecTy = GR->getSPIRVTypeForVReg(Tmp->getOperand(1).getReg());
+
 
   const auto *ST =
       static_cast<const SPIRVSubtarget *>(&MIRBuilder.getMF().getSubtarget());
-  if (ST->canUseExtension(SPIRV::Extension::SPV_KHR_integer_dot_product) ||
-      ST->isAtLeastSPIRVVer(VersionTuple(1, 6))) {
+  if (GR->isScalarOrVectorOfType(Call->ReturnRegister, SPIRV::OpTypeInt) &&
+      (ST->canUseExtension(SPIRV::Extension::SPV_KHR_integer_dot_product) ||
+       ST->isAtLeastSPIRVVer(VersionTuple(1, 6)))) {
     const SPIRV::DemangledBuiltin *Builtin = Call->Builtin;
     // What if it's just a dot without suffixes?
     const SPIRV::IntegerDotProductBuiltin *IntDot =
         SPIRV::lookupIntegerDotProductBuiltin(Builtin->Name);
-    uint32_t OC = IntDot->Opcode;
-    MachineInstrBuilder MIB = MIRBuilder.buildInstr(OC)
-                                  .addDef(Call->ReturnRegister)
-                                  .addUse(GR->getSPIRVTypeID(Call->ReturnType));
-    if (IntDot->IsSwapReq) {
-      MIB.addUse(Call->Arguments[1]);
-      MIB.addUse(Call->Arguments[0]);
-      for (size_t i = 2; i < Call->Arguments.size(); ++i)
-        MIB.addUse(Call->Arguments[i]);
-    } else {
-      for (size_t i = 0; i < Call->Arguments.size(); ++i)
-        MIB.addUse(Call->Arguments[i]);
+
+    if (IntDot) {
+      uint32_t OC = IntDot->Opcode;
+      MachineInstrBuilder MIB =
+          MIRBuilder.buildInstr(OC)
+              .addDef(Call->ReturnRegister)
+              .addUse(GR->getSPIRVTypeID(Call->ReturnType));
+      if (IntDot->IsSwapReq) {
+        MIB.addUse(Call->Arguments[1]);
+        MIB.addUse(Call->Arguments[0]);
+        for (size_t i = 2; i < Call->Arguments.size(); ++i)
+          MIB.addUse(Call->Arguments[i]);
+      } else {
+        for (size_t i = 0; i < Call->Arguments.size(); ++i)
+          MIB.addUse(Call->Arguments[i]);
+      }
+      // Add Packed Vector Format if arguments are scalar
+      if (!IsVec)
+        MIB.addImm(0);
+      return true;
+      // } else {
+      //   // here should go "dot" and "dot_acc_sat"
+
+      // }
     }
-    // Add Packed Vector Format if arguments are scalar
-    if (!IsVec)
-      MIB.addImm(0);
-    return true;
   }
   // Use OpDot only in case of vector args and OpFMul in case of scalar args.
-  MIRBuilder.buildInstr(IsVec ? SPIRV::OpDot : SPIRV::OpFMulS)
-      .addDef(Call->ReturnRegister)
-      .addUse(GR->getSPIRVTypeID(Call->ReturnType))
-      .addUse(Call->Arguments[0])
-      .addUse(Call->Arguments[1]);
+  uint32_t OC = IsVec ? SPIRV::OpDot : SPIRV::OpFMulS;
+
+  if (IsVec && VecTy->getOpcode() == SPIRV::OpTypeInt &&
+      (ST->canUseExtension(SPIRV::Extension::SPV_KHR_integer_dot_product) ||
+       ST->isAtLeastSPIRVVer(VersionTuple(1, 6)))) {
+
+    if (Call->BuiltinName == "dot")
+      OC = SPIRV::OpSDotKHR;
+    else if (Call->BuiltinName == "dot_acc_sat")
+      OC = SPIRV::OpSDotAccSatKHR;
+  }
+
+  MachineInstrBuilder MIB = MIRBuilder.buildInstr(OC)
+                                .addDef(Call->ReturnRegister)
+                                .addUse(GR->getSPIRVTypeID(Call->ReturnType))
+                                .addUse(Call->Arguments[0])
+                                .addUse(Call->Arguments[1]);
+
+  // needed for dot_acc_sat
+  for (size_t i = 2; i < Call->Arguments.size(); ++i)
+    MIB.addUse(Call->Arguments[i]);
   return true;
 }
 
@@ -2684,7 +2714,7 @@ std::optional<bool> lowerBuiltin(const StringRef DemangledCall,
     return generateCastToPtrInst(Call.get(), MIRBuilder);
   case SPIRV::Dot:
   case SPIRV::IntegerDot:
-    return generateDotOrFMulInst(Call.get(), MIRBuilder, GR);
+    return generateDotOrFMulInst(DemangledCall, Call.get(), MIRBuilder, GR);
   case SPIRV::Wave:
     return generateWaveInst(Call.get(), MIRBuilder, GR);
   case SPIRV::ICarryBorrow:

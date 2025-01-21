@@ -100,8 +100,8 @@ def lookupBuiltin : SearchIndex {
 }
 
 // Dot builtin record:
-def : DemangledBuiltin<"dot", OpenCL_std, IntegerDot, 2, 2>;
-def : DemangledBuiltin<"__spirv_Dot", OpenCL_std, IntegerDot, 2, 2>;
+// def : DemangledBuiltin<"dot", OpenCL_std, IntegerDot, 2, 2>;
+// def : DemangledBuiltin<"__spirv_Dot", OpenCL_std, IntegerDot, 2, 2>;
 // def : DemangledBuiltin<"dot_acc_sat", OpenCL_std, Dot, 3, 3>;
 // def : DemangledBuiltin<"__spirv_DotAccSat", OpenCL_std, Dot, 3, 3>;
 
@@ -1748,7 +1748,7 @@ def lookupIntegerDotProductBuiltin : SearchIndex {
   let Key = ["Name"];
 }
 
-// def : DemangledBuiltin<"dot", OpenCL_std, Dot, 2, 2>;
+def : DemangledBuiltin<"dot", OpenCL_std, IntegerDot, 2, 2>;
 // def : DemangledBuiltin<"__spirv_Dot", OpenCL_std, Dot, 2, 2>;
 def : DemangledBuiltin<"dot_acc_sat", OpenCL_std, IntegerDot, 3, 3>;
 // def : DemangledBuiltin<"__spirv_DotAccSat", OpenCL_std, Dot, 3, 3>;
