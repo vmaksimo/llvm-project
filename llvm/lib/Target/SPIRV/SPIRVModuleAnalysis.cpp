@@ -749,9 +749,9 @@ void RequirementHandler::initAvailableCapabilities(const SPIRVSubtarget &ST) {
                       Capability::GroupNonUniformShuffleRelative});
 
   if (ST.isAtLeastSPIRVVer(VersionTuple(1, 6)))
-    addAvailableCaps({Capability::DotProductKHR, Capability::DotProductInputAllKHR,
-                      Capability::DotProductInput4x8BitKHR,
-                      Capability::DotProductInput4x8BitPackedKHR,
+    addAvailableCaps({Capability::DotProduct, Capability::DotProductInputAll,
+                      Capability::DotProductInput4x8Bit,
+                      Capability::DotProductInput4x8BitPacked,
                       Capability::DemoteToHelperInvocation});
 
   // Add capabilities enabled by extensions.
@@ -1135,7 +1135,7 @@ static void AddDotProductRequirements(const MachineInstr &MI,
                                       const SPIRVSubtarget &ST) {
   if (ST.canUseExtension(SPIRV::Extension::SPV_KHR_integer_dot_product))
     Reqs.addExtension(SPIRV::Extension::SPV_KHR_integer_dot_product);
-  Reqs.addCapability(SPIRV::Capability::DotProductKHR);
+  Reqs.addCapability(SPIRV::Capability::DotProduct);
 
   const MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
   assert(MI.getOperand(2).isReg() && "Unexpected operand in dot");
@@ -1148,16 +1148,16 @@ static void AddDotProductRequirements(const MachineInstr &MI,
   SPIRVType *TypeDef = MRI.getVRegDef(InputReg);
   if (TypeDef->getOpcode() == SPIRV::OpTypeInt) {
     assert(TypeDef->getOperand(1).getImm() == 32);
-    Reqs.addCapability(SPIRV::Capability::DotProductInput4x8BitPackedKHR);
+    Reqs.addCapability(SPIRV::Capability::DotProductInput4x8BitPacked);
   } else if (TypeDef->getOpcode() == SPIRV::OpTypeVector) {
     SPIRVType *ScalarTypeDef = MRI.getVRegDef(TypeDef->getOperand(1).getReg());
     assert(ScalarTypeDef->getOpcode() == SPIRV::OpTypeInt);
     if (ScalarTypeDef->getOperand(1).getImm() == 8) {
       assert(TypeDef->getOperand(2).getImm() == 4 &&
              "Dot operand of 8-bit integer type requires 4 components");
-      Reqs.addCapability(SPIRV::Capability::DotProductInput4x8BitKHR);
+      Reqs.addCapability(SPIRV::Capability::DotProductInput4x8Bit);
     } else {
-      Reqs.addCapability(SPIRV::Capability::DotProductInputAllKHR);
+      Reqs.addCapability(SPIRV::Capability::DotProductInputAll);
     }
   }
 }
@@ -1688,12 +1688,12 @@ void addInstrRequirements(const MachineInstr &MI,
             SPIRV::Extension::SPV_EXT_demote_to_helper_invocation);
     }
     break;
-  case SPIRV::OpSDotKHR:
-  case SPIRV::OpUDotKHR:
-  case SPIRV::OpSUDotKHR:
-  case SPIRV::OpSDotAccSatKHR:
-  case SPIRV::OpUDotAccSatKHR:
-  case SPIRV::OpSUDotAccSatKHR:
+  case SPIRV::OpSDot:
+  case SPIRV::OpUDot:
+  case SPIRV::OpSUDot:
+  case SPIRV::OpSDotAccSat:
+  case SPIRV::OpUDotAccSat:
+  case SPIRV::OpSUDotAccSat:
     AddDotProductRequirements(MI, Reqs, ST);
     break;
   case SPIRV::OpImageRead: {

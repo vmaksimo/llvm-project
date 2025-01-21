@@ -1665,22 +1665,22 @@ static bool generateDotOrFMulInst(const StringRef DemangledCall,
 
     if (Call->BuiltinName == "dot") {
       if (IsFirstSigned && IsSecondSigned)
-        OC = SPIRV::OpSDotKHR;
+        OC = SPIRV::OpSDot;
       else if (!IsFirstSigned && !IsSecondSigned)
-        OC = SPIRV::OpUDotKHR;
+        OC = SPIRV::OpUDot;
       else {
-        OC = SPIRV::OpSUDotKHR;
+        OC = SPIRV::OpSUDot;
         if (!IsFirstSigned)
           IsSwapReq = true;
       }
     } else if (Call->BuiltinName == "dot_acc_sat") {
-      // OC = SPIRV::OpSDotAccSatKHR;
+      // OC = SPIRV::OpSDotAccSat;
       if (IsFirstSigned && IsSecondSigned)
-        OC = SPIRV::OpSDotAccSatKHR;
+        OC = SPIRV::OpSDotAccSat;
       else if (!IsFirstSigned && !IsSecondSigned)
-        OC = SPIRV::OpUDotAccSatKHR;
+        OC = SPIRV::OpUDotAccSat;
       else {
-        OC = SPIRV::OpSUDotAccSatKHR;
+        OC = SPIRV::OpSUDotAccSat;
         if (!IsFirstSigned)
           IsSwapReq = true;
       }
@@ -1691,23 +1691,19 @@ static bool generateDotOrFMulInst(const StringRef DemangledCall,
                                 .addDef(Call->ReturnRegister)
                                 .addUse(GR->getSPIRVTypeID(Call->ReturnType));
 
-                                // .addUse(Call->Arguments[0])
-                                // .addUse(Call->Arguments[1]);
-      if (IsSwapReq) {
-        MIB.addUse(Call->Arguments[1]);
-        MIB.addUse(Call->Arguments[0]);
-          // needed for dot_acc_sat
+  // .addUse(Call->Arguments[0])
+  // .addUse(Call->Arguments[1]);
+  if (IsSwapReq) {
+    MIB.addUse(Call->Arguments[1]);
+    MIB.addUse(Call->Arguments[0]);
 
-        for (size_t i = 2; i < Call->Arguments.size(); ++i)
-          MIB.addUse(Call->Arguments[i]);
-      } else {
-        for (size_t i = 0; i < Call->Arguments.size(); ++i)
-          MIB.addUse(Call->Arguments[i]);
-      }
-
-  // needed for dot_acc_sat
-  // for (size_t i = 2; i < Call->Arguments.size(); ++i)
-  //   MIB.addUse(Call->Arguments[i]);
+    // needed for dot_acc_sat
+    for (size_t i = 2; i < Call->Arguments.size(); ++i)
+      MIB.addUse(Call->Arguments[i]);
+  } else {
+    for (size_t i = 0; i < Call->Arguments.size(); ++i)
+      MIB.addUse(Call->Arguments[i]);
+  }
   return true;
 }
 

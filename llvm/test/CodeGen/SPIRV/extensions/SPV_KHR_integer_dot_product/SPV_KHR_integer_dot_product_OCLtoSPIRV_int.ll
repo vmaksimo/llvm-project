@@ -1,23 +1,23 @@
 ; RUN: llc -verify-machineinstrs -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_KHR_integer_dot_product %s -o - | FileCheck %s
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_KHR_integer_dot_product %s -o - -filetype=obj | spirv-val %}
 
-; CHECK: Capability DotProductKHR
-; CHECK: Capability DotProductInput4x8BitPackedKHR
+; CHECK: Capability DotProduct
+; CHECK: Capability DotProductInput4x8BitPacked
 
 ; CHECK: Name %[[#SignedA:]] "ia"
 ; CHECK: Name %[[#UnsignedA:]] "ua"
 ; CHECK: Name %[[#SignedB:]] "ib"
 ; CHECK: Name %[[#UnsignedB:]] "ub"
 
-; CHECK: SDotKHR %[[#]] %[[#SignedA]] %[[#SignedB]] 0
-; CHECK: SUDotKHR %[[#]] %[[#SignedA]] %[[#UnsignedB]] 0
-; CHECK: SUDotKHR %[[#]] %[[#SignedB]] %[[#UnsignedA]] 0
-; CHECK: UDotKHR %[[#]] %[[#UnsignedA]] %[[#UnsignedB]] 0
+; CHECK: SDot %[[#]] %[[#SignedA]] %[[#SignedB]] 0
+; CHECK: SUDot %[[#]] %[[#SignedA]] %[[#UnsignedB]] 0
+; CHECK: SUDot %[[#]] %[[#SignedB]] %[[#UnsignedA]] 0
+; CHECK: UDot %[[#]] %[[#UnsignedA]] %[[#UnsignedB]] 0
 
-; CHECK: SDotAccSatKHR %[[#]] %[[#SignedA]] %[[#SignedB]] %[[#]] 0
-; CHECK: SUDotAccSatKHR %[[#]] %[[#SignedA]] %[[#UnsignedB]] %[[#]] 0
-; CHECK: SUDotAccSatKHR %[[#]] %[[#SignedB]] %[[#UnsignedA]] %[[#]] 0
-; CHECK: UDotAccSatKHR %[[#]] %[[#UnsignedA]] %[[#UnsignedB]] %[[#]] 0
+; CHECK: SDotAccSat %[[#]] %[[#SignedA]] %[[#SignedB]] %[[#]] 0
+; CHECK: SUDotAccSat %[[#]] %[[#SignedA]] %[[#UnsignedB]] %[[#]] 0
+; CHECK: SUDotAccSat %[[#]] %[[#SignedB]] %[[#UnsignedA]] %[[#]] 0
+; CHECK: UDotAccSat %[[#]] %[[#UnsignedA]] %[[#UnsignedB]] %[[#]] 0
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir"
