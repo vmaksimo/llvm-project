@@ -1708,6 +1708,16 @@ void addInstrRequirements(const MachineInstr &MI,
       Reqs.addCapability(SPIRV::Capability::StorageImageWriteWithoutFormat);
     break;
   }
+  case SPIRV::OpTypeStructContinuedINTEL:
+  case SPIRV::OpConstantCompositeContinuedINTEL:
+  case SPIRV::OpSpecConstantCompositeContinuedINTEL:
+  case SPIRV::OpCompositeConstructContinuedINTEL: {
+    if (ST.canUseExtension(SPIRV::Extension::SPV_INTEL_long_composites)) {
+      Reqs.addExtension(SPIRV::Extension::SPV_INTEL_long_composites);
+      Reqs.addCapability(SPIRV::Capability::LongCompositesINTEL);
+    }
+    break;
+  }
 
   default:
     break;
