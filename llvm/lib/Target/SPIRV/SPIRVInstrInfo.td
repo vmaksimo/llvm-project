@@ -189,7 +189,7 @@ def OpTypeRuntimeArray: Op<29, (outs TYPE:$type), (ins TYPE:$elementType),
                   "$type = OpTypeRuntimeArray $elementType">;
 def OpTypeStruct: Op<30, (outs TYPE:$res), (ins variable_ops), "$res = OpTypeStruct">;
 def OpTypeStructContinuedINTEL: Op<6090, (outs TYPE:$res), (ins variable_ops),
-                  "$res = OpTypeStructContinuedINTEL">;
+                  "OpTypeStructContinuedINTEL">;
 def OpTypeOpaque: Op<31, (outs TYPE:$res), (ins StringImm:$name, variable_ops),
                   "$res = OpTypeOpaque $name">;
 def OpTypePointer: Op<32, (outs TYPE:$res), (ins StorageClass:$storage, TYPE:$type),

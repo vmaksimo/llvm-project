@@ -892,8 +892,8 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
   // SPV_INTEL_long_constant_composite is not enabled, the error will be
   // emitted by validate functionality of SPIRVTypeStruct class.
   if (NumElements > MaxNumElements) {
-      // BM->isAllowedToUseExtension(
-      //     ExtensionID::SPV_INTEL_long_constant_composite)) {
+    // BM->isAllowedToUseExtension(
+    //     ExtensionID::SPV_INTEL_long_constant_composite)) {
     SPIRVStructNumElements = MaxNumElements;
   }
   for (const auto &Elem : Ty->elements()) {
@@ -903,13 +903,13 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
     FieldTypes.push_back(getSPIRVTypeID(ElemTy));
   }
   Register ResVReg = createTypeVReg(MIRBuilder);
-    if (Ty->hasName())
-      buildOpName(ResVReg, Ty->getName(), MIRBuilder);
-    if (Ty->isPacked())
-      buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked, {});
+  if (Ty->hasName())
+    buildOpName(ResVReg, Ty->getName(), MIRBuilder);
+  if (Ty->isPacked())
+    buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked, {});
 
-// auto *Struct = BM->openStructType(SPIRVStructNumElements, Name.str());
-  auto MIB = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+  // auto *Struct = BM->openStructType(SPIRVStructNumElements, Name.str());
+  auto SPVType = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
     auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStruct).addDef(ResVReg);
     // for (const auto &Ty : FieldTypes)
     for (size_t I = 0; I < SPIRVStructNumElements; ++I)
@@ -929,18 +929,19 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
       //       static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
       // }
       ResVReg = createTypeVReg(MIRBuilder);
-      MIB = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
-        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL);
-                      //  .addDef(ResVReg);
+      SPVType = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL)
+                       .addDef(ResVReg);
         // for (const auto &Ty : FieldTypes)
         // for (size_t I = 0; I < SPIRVStructNumElements; ++I)
-        for (size_t I = (J+1) * MaxNumElements;
-             I < (J + 2) * MaxNumElements; ++I)
+        for (size_t I = (J + 1) * MaxNumElements; I < (J + 2) * MaxNumElements;
+             ++I)
           MIB.addUse(FieldTypes[I]);
         // if (FieldTypes[I]->hasName())
         //   buildOpName(ResVReg, FieldTypes[I]->getName(), MIRBuilder);
         // if (FieldTypes[I]->isPacked())
-        //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked, {});
+        //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked,
+        //   {});
         return MIB;
       });
     }
@@ -948,9 +949,9 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
     uint64_t Remains = NumElements % MaxNumElements;
     if (Remains) {
       ResVReg = createTypeVReg(MIRBuilder);
-            MIB = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
-        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL);
-                      //  .addDef(ResVReg);
+      SPVType = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL)
+                       .addDef(ResVReg);
         // for (const auto &Ty : FieldTypes)
         // for (size_t I = 0; I < SPIRVStructNumElements; ++I)
         // for (size_t I = (J+1) * MaxNumElements;
@@ -960,7 +961,8 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
         // if (FieldTypes[I]->hasName())
         //   buildOpName(ResVReg, FieldTypes[I]->getName(), MIRBuilder);
         // if (FieldTypes[I]->isPacked())
-        //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked, {});
+        //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked,
+        //   {});
         return MIB;
       });
       // auto *Continued = BM->addTypeStructContinuedINTEL(Remains);
@@ -978,8 +980,10 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
   // });
   // if (Ty->hasName())
   //   buildOpName(ResVReg, Ty->getName(), MIRBuilder);
-  
-  return MIB;
+
+  // Do we need to return the first OpTypeStruct instead of the last continued
+  // instruction?
+  return SPVType;
 }
 
 SPIRVType *SPIRVGlobalRegistry::getOrCreateSpecialType(
