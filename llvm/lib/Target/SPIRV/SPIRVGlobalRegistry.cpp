@@ -916,8 +916,8 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
     for (uint64_t J = 0; J < NumOfContinuedInstructions; J++) {
       // SPVType =
       createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
-        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL)
-                       .addUse(createTypeVReg(MIRBuilder));
+        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL);
+                      //  .addDef(createTypeVReg(MIRBuilder));
 
         for (size_t I = (J + 1) * MaxNumElements; I < (J + 2) * MaxNumElements;
              ++I)
@@ -930,8 +930,8 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
     if (Remains) {
       // SPVType =
       createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
-        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL)
-                       .addUse(createTypeVReg(MIRBuilder));
+        auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL);
+                      //  .addDef(createTypeVReg(MIRBuilder));
         for (size_t I = NumElements - Remains; I < NumElements; ++I)
           MIB.addUse(FieldTypes[I]);
         return MIB;
