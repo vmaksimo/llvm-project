@@ -76,7 +76,8 @@ bool SPIRVInstrInfo::isTypeDeclInstr(const MachineInstr &MI) const {
     auto DefRegClass = MRI.getRegClassOrNull(MI.getOperand(0).getReg());
     return DefRegClass && DefRegClass->getID() == SPIRV::TYPERegClass.getID();
   } else {
-    return MI.getOpcode() == SPIRV::OpTypeForwardPointer;
+    return MI.getOpcode() == SPIRV::OpTypeForwardPointer ||
+           MI.getOpcode() == SPIRV::OpTypeStructContinuedINTEL;
   }
 }
 

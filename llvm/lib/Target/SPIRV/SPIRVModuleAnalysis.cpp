@@ -257,6 +257,7 @@ bool SPIRVModuleAnalysis::isDeclSection(const MachineRegisterInfo &MRI,
   unsigned Opcode = MI.getOpcode();
   switch (Opcode) {
   case SPIRV::OpTypeForwardPointer:
+  case SPIRV::OpTypeStructContinuedINTEL:
     // omit now, collect later
     return false;
   case SPIRV::OpVariable:
@@ -558,7 +559,7 @@ void SPIRVModuleAnalysis::processOtherInstrs(const Module &M) {
         } else if (TII->isDecorationInstr(MI)) {
           collectOtherInstr(MI, MAI, SPIRV::MB_Annotations, IS);
           collectFuncNames(MI, &*F);
-        } else if (TII->isConstantInstr(MI)) {
+        } else if (TII->isConstantInstr(MI) || OpCode == SPIRV::OpTypeStructContinuedINTEL) {
           // Now OpSpecConstant*s are not in DT,
           // but they need to be collected anyway.
           collectOtherInstr(MI, MAI, SPIRV::MB_TypeConstVars, IS);
