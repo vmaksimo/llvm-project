@@ -888,12 +888,7 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
       MaxWordCount - 2; // SPIRVTypeStruct::FixedWC
   const size_t NumElements = Ty->getNumElements();
   size_t SPIRVStructNumElements = NumElements;
-  // In case number of elements is greater than maximum WordCount and
-  // SPV_INTEL_long_constant_composite is not enabled, the error will be
-  // emitted by validate functionality of SPIRVTypeStruct class.
   if (NumElements > MaxNumElements) {
-    // BM->isAllowedToUseExtension(
-    //     ExtensionID::SPV_INTEL_long_constant_composite)) {
     SPIRVStructNumElements = MaxNumElements;
   }
   for (const auto &Elem : Ty->elements()) {
@@ -911,76 +906,38 @@ SPIRVType *SPIRVGlobalRegistry::getOpTypeStruct(const StructType *Ty,
   // auto *Struct = BM->openStructType(SPIRVStructNumElements, Name.str());
   auto SPVType = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
     auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStruct).addDef(ResVReg);
-    // for (const auto &Ty : FieldTypes)
     for (size_t I = 0; I < SPIRVStructNumElements; ++I)
       MIB.addUse(FieldTypes[I]);
-    // if (FieldTypes[I]->hasName())
-    //   buildOpName(ResVReg, FieldTypes[I]->getName(), MIRBuilder);
-    // if (FieldTypes[I]->isPacked())
-    //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked, {});
     return MIB;
   });
 
   if (NumElements > MaxNumElements) {
     uint64_t NumOfContinuedInstructions = NumElements / MaxNumElements - 1;
     for (uint64_t J = 0; J < NumOfContinuedInstructions; J++) {
-      //   auto *Continued = BM->addTypeStructContinuedINTEL(MaxNumElements);
-      //   Struct->addContinuedInstruction(
-      //       static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
-      // }
-      ResVReg = createTypeVReg(MIRBuilder);
-      SPVType = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+      // SPVType =
+      createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
         auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL)
-                       .addDef(ResVReg);
-        // for (const auto &Ty : FieldTypes)
-        // for (size_t I = 0; I < SPIRVStructNumElements; ++I)
+                       .addUse(createTypeVReg(MIRBuilder));
+
         for (size_t I = (J + 1) * MaxNumElements; I < (J + 2) * MaxNumElements;
              ++I)
           MIB.addUse(FieldTypes[I]);
-        // if (FieldTypes[I]->hasName())
-        //   buildOpName(ResVReg, FieldTypes[I]->getName(), MIRBuilder);
-        // if (FieldTypes[I]->isPacked())
-        //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked,
-        //   {});
         return MIB;
       });
     }
 
     uint64_t Remains = NumElements % MaxNumElements;
     if (Remains) {
-      ResVReg = createTypeVReg(MIRBuilder);
-      SPVType = createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+      // SPVType =
+      createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
         auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL)
-                       .addDef(ResVReg);
-        // for (const auto &Ty : FieldTypes)
-        // for (size_t I = 0; I < SPIRVStructNumElements; ++I)
-        // for (size_t I = (J+1) * MaxNumElements;
-        //      I < (J + 2) * MaxNumElements; ++I)
+                       .addUse(createTypeVReg(MIRBuilder));
         for (size_t I = NumElements - Remains; I < NumElements; ++I)
           MIB.addUse(FieldTypes[I]);
-        // if (FieldTypes[I]->hasName())
-        //   buildOpName(ResVReg, FieldTypes[I]->getName(), MIRBuilder);
-        // if (FieldTypes[I]->isPacked())
-        //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked,
-        //   {});
         return MIB;
       });
-      // auto *Continued = BM->addTypeStructContinuedINTEL(Remains);
-      // Struct->addContinuedInstruction(
-      //     static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
     }
   }
-
-  // return createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
-  //   auto MIB = MIRBuilder.buildInstr(SPIRV::OpTypeStruct).addDef(ResVReg);
-  //   for (const auto &Ty : FieldTypes)
-  //     MIB.addUse(Ty);
-
-  //   return MIB;
-  // });
-  // if (Ty->hasName())
-  //   buildOpName(ResVReg, Ty->getName(), MIRBuilder);
-
   // Do we need to return the first OpTypeStruct instead of the last continued
   // instruction?
   return SPVType;

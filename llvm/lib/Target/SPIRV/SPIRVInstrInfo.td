@@ -188,7 +188,7 @@ def OpTypeArray: Op<28, (outs TYPE:$type), (ins TYPE:$elementType, ID:$length),
 def OpTypeRuntimeArray: Op<29, (outs TYPE:$type), (ins TYPE:$elementType),
                   "$type = OpTypeRuntimeArray $elementType">;
 def OpTypeStruct: Op<30, (outs TYPE:$res), (ins variable_ops), "$res = OpTypeStruct">;
-def OpTypeStructContinuedINTEL: Op<6090, (outs TYPE:$res), (ins variable_ops),
+def OpTypeStructContinuedINTEL: Op<6090, (outs), (ins variable_ops),
                   "OpTypeStructContinuedINTEL">;
 def OpTypeOpaque: Op<31, (outs TYPE:$res), (ins StringImm:$name, variable_ops),
                   "$res = OpTypeOpaque $name">;
