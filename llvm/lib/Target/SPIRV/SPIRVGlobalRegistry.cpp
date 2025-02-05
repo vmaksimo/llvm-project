@@ -587,11 +587,85 @@ Register SPIRVGlobalRegistry::getOrCreateIntCompositeOrNull(
     } else {
       createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
         if (Val) {
+          // SmallVector<Register, 4> FieldTypes;
+          constexpr unsigned MaxWordCount = UINT16_MAX;
+
+          constexpr size_t MaxNumElements =
+              MaxWordCount - 3; // SPIRVTypeStruct::FixedWC
+          // // const size_t NumElements = Ty->getNumElements();
+          size_t SPIRVStructNumElements = ElemCnt;
+          if (ElemCnt > MaxNumElements) {
+            SPIRVStructNumElements = MaxNumElements;
+          }
+          // for (const auto &Elem : Ty->elements()) {
+          //   SPIRVType *ElemTy = findSPIRVType(toTypedPointer(Elem),
+          //   MIRBuilder); assert(ElemTy && ElemTy->getOpcode() !=
+          //   SPIRV::OpTypeVoid &&
+          //          "Invalid struct element type");
+          //   FieldTypes.push_back(getSPIRVTypeID(ElemTy));
+          // }
+          // Register ResVReg = createTypeVReg(MIRBuilder);
+          // if (Ty->hasName())
+          //   buildOpName(ResVReg, Ty->getName(), MIRBuilder);
+          // if (Ty->isPacked())
+          //   buildOpDecorate(ResVReg, MIRBuilder, SPIRV::Decoration::CPacked,
+          //   {});
+
+          // // auto *Struct = BM->openStructType(SPIRVStructNumElements,
+          // Name.str()); auto SPVType = createOpType(MIRBuilder,
+          // [&](MachineIRBuilder &MIRBuilder) {
+          //   auto MIB =
+          //   MIRBuilder.buildInstr(SPIRV::OpTypeStruct).addDef(ResVReg); for
+          //   (size_t I = 0; I < SPIRVStructNumElements; ++I)
+          //     MIB.addUse(FieldTypes[I]);
+          //   return MIB;
+          // });
+
+          // if (NumElements > MaxNumElements) {
+          //   uint64_t NumOfContinuedInstructions = NumElements /
+          //   MaxNumElements - 1; for (uint64_t J = 0; J <
+          //   NumOfContinuedInstructions; J++) {
+          //     // SPVType =
+          //     createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+          //       auto MIB =
+          //       MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL);
+          //                     //  .addDef(createTypeVReg(MIRBuilder));
+
+          //       for (size_t I = (J + 1) * MaxNumElements; I < (J + 2) *
+          //       MaxNumElements;
+          //            ++I)
+          //         MIB.addUse(FieldTypes[I]);
+          //       return MIB;
+          //     });
+          //   }
+
+          //   uint64_t Remains = NumElements % MaxNumElements;
+          //   if (Remains) {
+          //     // SPVType =
+          //     createOpType(MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
+          //       auto MIB =
+          //       MIRBuilder.buildInstr(SPIRV::OpTypeStructContinuedINTEL);
+          //                     //  .addDef(createTypeVReg(MIRBuilder));
+          //       for (size_t I = NumElements - Remains; I < NumElements; ++I)
+          //         MIB.addUse(FieldTypes[I]);
+          //       return MIB;
+          //     });
+          //   }
+          // }
+          // // Do we need to return the first OpTypeStruct instead of the last
+          // continued
+          // // instruction?
+          // return SPVType;
+
           auto MIB = MIRBuilder.buildInstr(SPIRV::OpConstantComposite)
                          .addDef(SpvVecConst)
                          .addUse(getSPIRVTypeID(SpvType));
           for (unsigned i = 0; i < ElemCnt; ++i)
             MIB.addUse(SpvScalConst);
+
+
+
+
           return MIB;
         } else {
           return MIRBuilder.buildInstr(SPIRV::OpConstantNull)
