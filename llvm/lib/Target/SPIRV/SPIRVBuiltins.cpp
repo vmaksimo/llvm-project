@@ -2171,8 +2171,22 @@ static bool generateSpecConstantInst(const SPIRV::IncomingCall *Call,
     auto MIB = MIRBuilder.buildInstr(Opcode)
                    .addDef(Call->ReturnRegister)
                    .addUse(GR->getSPIRVTypeID(Call->ReturnType));
-    for (unsigned i = 0; i < Call->Arguments.size(); i++)
-      MIB.addUse(Call->Arguments[i]);
+
+    constexpr unsigned MaxWordCount = UINT16_MAX;
+    constexpr size_t MaxNumElements = MaxWordCount - 3;
+    const size_t NumElements = Call->Arguments.size();
+    size_t SPIRVStructNumElements = NumElements;
+    if (NumElements > MaxNumElements) {
+      SPIRVStructNumElements = MaxNumElements;
+    }
+    for (size_t I = 0; I < SPIRVStructNumElements; ++I)
+      MIB.addUse(Call->Arguments[I]);
+
+    for (size_t I = SPIRVStructNumElements; I < NumElements; I += (MaxWordCount-2)) {
+      auto MIB = MIRBuilder.buildInstr(SPIRV::OpSpecConstantCompositeContinuedINTEL);
+      for (size_t J = I; J < std::min(I + MaxNumElements, NumElements); ++J)
+      MIB.addUse(Call->Arguments[J]);
+    }
     return true;
   }
   default:
