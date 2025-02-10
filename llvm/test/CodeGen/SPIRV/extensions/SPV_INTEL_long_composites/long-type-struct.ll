@@ -1,15 +1,15 @@
-; R/UN: llc -verify-machineinstrs -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_INTEL_long_composites %s -o - | FileCheck %s
-; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_INTEL_long_composites %s -o - -filetype=obj | spirv-val --max-struct-members 65535 %}
+; RUN: llc -verify-machineinstrs -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_INTEL_long_composites %s -o - | FileCheck %s
+; TODO: enable back once spirv-val knows about OpTypeStructContinuedINTEL type
+; RUNx: %if spirv-tools %{ llc -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_INTEL_long_composites %s -o - -filetype=obj | spirv-val --max-struct-members 65535 %}
 
 ; CHECK: Capability LongCompositesINTEL
 ; CHECK: Extension "SPV_INTEL_long_composites"
-; CHECK: [[#TInt:]] = OpTypeInt 8 0
-; CHECK: [[#TIntPtr:]] = OpTypePointer Generic %[[#TInt]]
-; CHECK: [[#TArr:]] = OpTypeArray
-; 65535
+; CHECK: %[[#TInt:]] = OpTypeInt 8 0
+; CHECK: %[[#TIntPtr:]] = OpTypePointer Generic %[[#TInt]]
+; CHECK: %[[#TArr:]] = OpTypeArray
+
 ; CHECK: OpTypeStruct %[[#TIntPtr]] %[[#TIntPtr]] %[[#TArr]] %[[#TInt]] %[[#TInt]] %[[#TInt]]
-; 10 
-; CHECK-NEXT: OpTypeStructContinuedINTEL %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] {{$}}
+; CHECK-NEXT: OpTypeStructContinuedINTEL %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]] %[[#TInt]]{{$}}
 
 ; CHECK-ERROR: InvalidWordCount: Can't encode instruction with word count greater than 65535:
 ; CHECK-ERROR: Id: {{[0-9]+}}, OpCode: TypeStruct, Name: ""

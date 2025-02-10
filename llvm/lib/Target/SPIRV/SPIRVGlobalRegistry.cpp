@@ -1084,8 +1084,8 @@ SPIRVType *SPIRVGlobalRegistry::findSPIRVType(
 
 Register SPIRVGlobalRegistry::getSPIRVTypeID(const SPIRVType *SpirvType) const {
   assert(SpirvType && "Attempting to get type id for nullptr type.");
-  if (SpirvType->getOpcode() == SPIRV::OpTypeForwardPointer)
-      // SpirvType->getOpcode() == SPIRV::OpTypeStructContinuedINTEL)
+  if (SpirvType->getOpcode() == SPIRV::OpTypeForwardPointer ||
+      SpirvType->getOpcode() == SPIRV::OpTypeStructContinuedINTEL)
     return SpirvType->uses().begin()->getReg();
   return SpirvType->defs().begin()->getReg();
 }

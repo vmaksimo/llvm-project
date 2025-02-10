@@ -257,7 +257,7 @@ bool SPIRVModuleAnalysis::isDeclSection(const MachineRegisterInfo &MRI,
   unsigned Opcode = MI.getOpcode();
   switch (Opcode) {
   case SPIRV::OpTypeForwardPointer:
-  case SPIRV::OpTypeStructContinuedINTEL:
+  // case SPIRV::OpTypeStructContinuedINTEL:
     // omit now, collect later
     return false;
   case SPIRV::OpVariable:
@@ -361,6 +361,14 @@ void SPIRVModuleAnalysis::visitDecl(
   } else if (Opcode == SPIRV::OpFunction ||
              Opcode == SPIRV::OpFunctionParameter) {
     GReg = handleFunctionOrParameter(MF, MI, GlobalToGReg, IsFunDef);
+  } else if (Opcode == SPIRV::OpTypeStruct) {
+    GReg = handleTypeDeclOrConstant(MI, SignatureToGReg);
+    const MachineInstr *NextInstr = MI.getNextNode();
+    if (NextInstr->getOpcode() == SPIRV::OpTypeStructContinuedINTEL) {
+      Register Tmp = handleTypeDeclOrConstant(*NextInstr, SignatureToGReg);
+      MAI.setRegisterAlias(MF, NextInstr->getOperand(0).getReg(), Tmp);
+      MAI.setSkipEmission(NextInstr);
+    }
   } else if (TII->isTypeDeclInstr(MI) || TII->isConstantInstr(MI) ||
              TII->isInlineAsmDefInstr(MI)) {
     GReg = handleTypeDeclOrConstant(MI, SignatureToGReg);
@@ -559,13 +567,13 @@ void SPIRVModuleAnalysis::processOtherInstrs(const Module &M) {
         } else if (TII->isDecorationInstr(MI)) {
           collectOtherInstr(MI, MAI, SPIRV::MB_Annotations, IS);
           collectFuncNames(MI, &*F);
-        } else if (TII->isConstantInstr(MI) || OpCode == SPIRV::OpTypeStructContinuedINTEL) {
+        } else if (TII->isConstantInstr(MI)) { //|| OpCode == SPIRV::OpTypeStructContinuedINTEL) {
           // Now OpSpecConstant*s are not in DT,
           // but they need to be collected anyway.
           collectOtherInstr(MI, MAI, SPIRV::MB_TypeConstVars, IS);
         } else if (OpCode == SPIRV::OpFunction) {
           collectFuncNames(MI, &*F);
-        } else if (OpCode == SPIRV::OpTypeForwardPointer) {
+        } else if (OpCode == SPIRV::OpTypeForwardPointer){
           collectOtherInstr(MI, MAI, SPIRV::MB_TypeConstVars, IS, false);
         }
       }
