@@ -257,7 +257,6 @@ bool SPIRVModuleAnalysis::isDeclSection(const MachineRegisterInfo &MRI,
   unsigned Opcode = MI.getOpcode();
   switch (Opcode) {
   case SPIRV::OpTypeForwardPointer:
-  // case SPIRV::OpTypeStructContinuedINTEL:
     // omit now, collect later
     return false;
   case SPIRV::OpVariable:
@@ -364,10 +363,12 @@ void SPIRVModuleAnalysis::visitDecl(
   } else if (Opcode == SPIRV::OpTypeStruct) {
     GReg = handleTypeDeclOrConstant(MI, SignatureToGReg);
     const MachineInstr *NextInstr = MI.getNextNode();
-    if (NextInstr->getOpcode() == SPIRV::OpTypeStructContinuedINTEL) {
+    while (NextInstr &&
+           NextInstr->getOpcode() == SPIRV::OpTypeStructContinuedINTEL) {
       Register Tmp = handleTypeDeclOrConstant(*NextInstr, SignatureToGReg);
       MAI.setRegisterAlias(MF, NextInstr->getOperand(0).getReg(), Tmp);
       MAI.setSkipEmission(NextInstr);
+      NextInstr = NextInstr->getNextNode();
     }
   } else if (TII->isTypeDeclInstr(MI) || TII->isConstantInstr(MI) ||
              TII->isInlineAsmDefInstr(MI)) {
@@ -567,7 +568,7 @@ void SPIRVModuleAnalysis::processOtherInstrs(const Module &M) {
         } else if (TII->isDecorationInstr(MI)) {
           collectOtherInstr(MI, MAI, SPIRV::MB_Annotations, IS);
           collectFuncNames(MI, &*F);
-        } else if (TII->isConstantInstr(MI)) { //|| OpCode == SPIRV::OpTypeStructContinuedINTEL) {
+        } else if (TII->isConstantInstr(MI)) {
           // Now OpSpecConstant*s are not in DT,
           // but they need to be collected anyway.
           collectOtherInstr(MI, MAI, SPIRV::MB_TypeConstVars, IS);
@@ -1721,10 +1722,13 @@ void addInstrRequirements(const MachineInstr &MI,
   case SPIRV::OpConstantCompositeContinuedINTEL:
   case SPIRV::OpSpecConstantCompositeContinuedINTEL:
   case SPIRV::OpCompositeConstructContinuedINTEL: {
-    if (ST.canUseExtension(SPIRV::Extension::SPV_INTEL_long_composites)) {
-      Reqs.addExtension(SPIRV::Extension::SPV_INTEL_long_composites);
-      Reqs.addCapability(SPIRV::Capability::LongCompositesINTEL);
-    }
+    if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_long_composites))
+      report_fatal_error(
+          "Continued instructions require the "
+          "following SPIR-V extension: SPV_INTEL_long_composites",
+          false);
+    Reqs.addExtension(SPIRV::Extension::SPV_INTEL_long_composites);
+    Reqs.addCapability(SPIRV::Capability::LongCompositesINTEL);
     break;
   }
 
