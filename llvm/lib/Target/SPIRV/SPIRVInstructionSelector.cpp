@@ -2919,8 +2919,24 @@ bool SPIRVInstructionSelector::selectIntrinsic(Register ResVReg,
                    .addUse(GR.getSPIRVTypeID(ResType));
     // skip type MD node we already used when generated assign.type for this
     if (!IsNull) {
-      for (Register OpReg : CompositeArgs)
-        MIB.addUse(OpReg);
+      constexpr unsigned MaxWordCount = UINT16_MAX;
+      const size_t NumElements = CompositeArgs.size();
+      size_t MaxNumElements = MaxWordCount - 3;
+      size_t SPIRVStructNumElements = NumElements;
+      if (NumElements > MaxNumElements) {
+        SPIRVStructNumElements = MaxNumElements;
+        MaxNumElements = MaxWordCount - 1;
+      }
+      for (size_t i = 0; i < SPIRVStructNumElements; i++)
+        MIB.addUse(CompositeArgs[i]);
+
+      for (size_t i = SPIRVStructNumElements; i < NumElements;
+           i += MaxNumElements) {
+        auto MIB =
+            BuildMI(BB, I, I.getDebugLoc(), TII.get(SPIRV::OpConstantCompositeContinuedINTEL));
+        for (size_t j = i; j < std::min(i + MaxNumElements, NumElements); j++)
+          MIB.addUse(CompositeArgs[j]);
+      }
     }
     return MIB.constrainAllUses(TII, TRI, RBI);
   }
