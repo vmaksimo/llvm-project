@@ -825,12 +825,19 @@ static void insertSpirvDecorations(MachineFunction &MF, SPIRVGlobalRegistry *GR,
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
       if (!isSpvIntrinsic(MI, Intrinsic::spv_assign_decoration) &&
-          !isSpvIntrinsic(MI, Intrinsic::spv_assign_aliasing_decoration))
+          !isSpvIntrinsic(MI, Intrinsic::spv_assign_aliasing_decoration) &&
+          !isSpvIntrinsic(MI, Intrinsic::spv_assign_fpmaxerror_decoration))
         continue;
       MIB.setInsertPt(*MI.getParent(), MI.getNextNode());
       if (isSpvIntrinsic(MI, Intrinsic::spv_assign_decoration)) {
         buildOpSpirvDecorations(MI.getOperand(1).getReg(), MIB,
                                 MI.getOperand(2).getMetadata());
+      } else if (isSpvIntrinsic(MI,
+                                Intrinsic::spv_assign_fpmaxerror_decoration)) {
+        buildOpSpirvDecorations(
+            MI.getOperand(1).getReg(), MIB, MI.getOperand(2).getMetadata(),
+            static_cast<uint32_t>(
+                SPIRV::Decoration::FPMaxErrorDecorationINTEL));
       } else {
         GR->buildMemAliasingOpDecorate(MI.getOperand(1).getReg(), MIB,
                                        MI.getOperand(2).getImm(),

@@ -147,29 +147,39 @@ void buildOpDecorate(Register Reg, MachineInstr &I, const SPIRVInstrInfo &TII,
 }
 
 void buildOpSpirvDecorations(Register Reg, MachineIRBuilder &MIRBuilder,
-                             const MDNode *GVarMD) {
+                             const MDNode *GVarMD, uint32_t Dec) {
   for (unsigned I = 0, E = GVarMD->getNumOperands(); I != E; ++I) {
     auto *OpMD = dyn_cast<MDNode>(GVarMD->getOperand(I));
-    if (!OpMD)
-      report_fatal_error("Invalid decoration");
-    if (OpMD->getNumOperands() == 0)
-      report_fatal_error("Expect operand(s) of the decoration");
-    ConstantInt *DecorationId =
-        mdconst::dyn_extract<ConstantInt>(OpMD->getOperand(0));
-    if (!DecorationId)
-      report_fatal_error("Expect SPIR-V <Decoration> operand to be the first "
-                         "element of the decoration");
-    auto MIB = MIRBuilder.buildInstr(SPIRV::OpDecorate)
-                   .addUse(Reg)
-                   .addImm(static_cast<uint32_t>(DecorationId->getZExtValue()));
-    for (unsigned OpI = 1, OpE = OpMD->getNumOperands(); OpI != OpE; ++OpI) {
-      if (ConstantInt *OpV =
-              mdconst::dyn_extract<ConstantInt>(OpMD->getOperand(OpI)))
-        MIB.addImm(static_cast<uint32_t>(OpV->getZExtValue()));
-      else if (MDString *OpV = dyn_cast<MDString>(OpMD->getOperand(OpI)))
-        addStringImm(OpV->getString(), MIB);
-      else
-        report_fatal_error("Unexpected operand of the decoration");
+    if (!Dec) {
+      if (!OpMD)
+        report_fatal_error("Invalid decoration");
+      if (OpMD->getNumOperands() == 0)
+        report_fatal_error("Expect operand(s) of the decoration");
+      ConstantInt *DecorationId =
+          mdconst::dyn_extract<ConstantInt>(OpMD->getOperand(0));
+      if (!DecorationId)
+        report_fatal_error("Expect SPIR-V <Decoration> operand to be the first "
+                           "element of the decoration");
+      Dec = static_cast<uint32_t>(DecorationId->getZExtValue());
+    }
+    auto MIB = MIRBuilder.buildInstr(SPIRV::OpDecorate).addUse(Reg).addImm(Dec);
+    if (!OpMD) {
+      if (ConstantFP *OpV =
+              mdconst::dyn_extract<ConstantFP>(GVarMD->getOperand(I))) {
+        MIB.addFPImm(OpV); //->getValueAPF().convertToFloat());
+      } else {
+        report_fatal_error("Expect a float operand of the decoration");
+      }
+    } else {
+      for (unsigned OpI = 1, OpE = OpMD->getNumOperands(); OpI != OpE; ++OpI) {
+        if (ConstantInt *OpV =
+                mdconst::dyn_extract<ConstantInt>(OpMD->getOperand(OpI)))
+          MIB.addImm(static_cast<uint32_t>(OpV->getZExtValue()));
+        else if (MDString *OpV = dyn_cast<MDString>(OpMD->getOperand(OpI)))
+          addStringImm(OpV->getString(), MIB);
+        else
+          report_fatal_error("Unexpected operand of the decoration");
+      }
     }
   }
 }

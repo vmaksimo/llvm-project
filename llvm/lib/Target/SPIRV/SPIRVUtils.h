@@ -146,7 +146,7 @@ void buildOpDecorate(Register Reg, MachineInstr &I, const SPIRVInstrInfo &TII,
 
 // Add an OpDecorate instruction by "spirv.Decorations" metadata node.
 void buildOpSpirvDecorations(Register Reg, MachineIRBuilder &MIRBuilder,
-                             const MDNode *GVarMD);
+                             const MDNode *GVarMD, uint32_t Dec = 0);
 
 // Return a valid position for the OpVariable instruction inside a function,
 // i.e., at the beginning of the first block of the function.

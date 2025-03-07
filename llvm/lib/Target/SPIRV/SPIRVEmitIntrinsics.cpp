@@ -2036,14 +2036,15 @@ void SPIRVEmitIntrinsics::insertSpirvDecorations(Instruction *I,
     // double ValAsDouble = MDVal->getValue().convertToFloat();
     // I->addDecorate(DecorationFPMaxErrorDecorationINTEL,
     //                convertFloatToSPIRVWord(ValAsDouble));
-    uint32_t Dec =  SPIRV::Decoration::FPMaxErrorDecorationINTEL;
+    uint32_t Dec = SPIRV::Decoration::FPMaxErrorDecorationINTEL;
     auto *MDVal = mdconst::dyn_extract<ConstantFP>(MD->getOperand(0));
     double ValAsDouble = MDVal->getValue().convertToFloat();
     uint32_t q = convertFloatToSPIRVWord(ValAsDouble);
     setInsertPointAfterDef(B, I);
-    B.CreateIntrinsic(Intrinsic::spv_assign_decoration, {I->getType()},
-                      {I, //ConstantInt::get(B.getInt32Ty(), Dec),
-                        MetadataAsValue::get(I->getContext(), MD)});
+    B.CreateIntrinsic(Intrinsic::spv_assign_fpmaxerror_decoration,
+                      {I->getType()},
+                      {I, // ConstantInt::get(B.getInt32Ty(), Dec),
+                       MetadataAsValue::get(I->getContext(), MD)});
   }
 }
 
