@@ -1989,15 +1989,6 @@ bool SPIRVEmitIntrinsics::shouldTryToAddMemAliasingDecoration(
   return false;
 }
 
-static uint32_t convertFloatToSPIRVWord(float F) {
-  union {
-    float F;
-    uint32_t Spir;
-  } FPMaxError;
-  FPMaxError.F = F;
-  return FPMaxError.Spir;
-}
-
 void SPIRVEmitIntrinsics::insertSpirvDecorations(Instruction *I,
                                                  IRBuilder<> &B) {
   if (MDNode *MD = I->getMetadata("spirv.Decorations")) {
@@ -2032,19 +2023,11 @@ void SPIRVEmitIntrinsics::insertSpirvDecorations(Instruction *I,
         STI->canUseExtension(SPIRV::Extension::SPV_INTEL_fp_max_error);
     if (!AllowFPMaxError)
       return;
-    // auto *MDVal = mdconst::dyn_extract<ConstantFP>(MD->getOperand(0));
-    // double ValAsDouble = MDVal->getValue().convertToFloat();
-    // I->addDecorate(DecorationFPMaxErrorDecorationINTEL,
-    //                convertFloatToSPIRVWord(ValAsDouble));
-    uint32_t Dec = SPIRV::Decoration::FPMaxErrorDecorationINTEL;
-    auto *MDVal = mdconst::dyn_extract<ConstantFP>(MD->getOperand(0));
-    double ValAsDouble = MDVal->getValue().convertToFloat();
-    uint32_t q = convertFloatToSPIRVWord(ValAsDouble);
+
     setInsertPointAfterDef(B, I);
     B.CreateIntrinsic(Intrinsic::spv_assign_fpmaxerror_decoration,
                       {I->getType()},
-                      {I, // ConstantInt::get(B.getInt32Ty(), Dec),
-                       MetadataAsValue::get(I->getContext(), MD)});
+                      {I, MetadataAsValue::get(I->getContext(), MD)});
   }
 }
 

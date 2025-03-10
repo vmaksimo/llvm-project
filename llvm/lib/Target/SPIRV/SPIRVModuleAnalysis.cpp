@@ -889,7 +889,7 @@ static void addOpDecorateReqs(const MachineInstr &MI, unsigned DecIndex,
   } else if (Dec == SPIRV::Decoration::NonUniformEXT) {
     Reqs.addRequirements(SPIRV::Capability::ShaderNonUniformEXT);
   } else if (Dec == SPIRV::Decoration::FPMaxErrorDecorationINTEL) {
-    // Reqs.addRequirements(SPIRV::Capability::FPMaxErrorINTEL);
+    Reqs.addRequirements(SPIRV::Capability::FPMaxErrorINTEL);
     Reqs.addExtension(SPIRV::Extension::SPV_INTEL_fp_max_error);
   }
 }
