@@ -146,6 +146,15 @@ void buildOpDecorate(Register Reg, MachineInstr &I, const SPIRVInstrInfo &TII,
   finishBuildOpDecorate(MIB, DecArgs, StrImm);
 }
 
+static uint32_t convertFloatToSPIRVWord(float F) {
+  union {
+    float F;
+    uint32_t Spir;
+  } FPMaxError;
+  FPMaxError.F = F;
+  return FPMaxError.Spir;
+}
+
 void buildOpSpirvDecorations(Register Reg, MachineIRBuilder &MIRBuilder,
                              const MDNode *GVarMD, uint32_t Dec) {
   for (unsigned I = 0, E = GVarMD->getNumOperands(); I != E; ++I) {
@@ -166,7 +175,7 @@ void buildOpSpirvDecorations(Register Reg, MachineIRBuilder &MIRBuilder,
     if (!OpMD) {
       if (ConstantFP *OpV =
               mdconst::dyn_extract<ConstantFP>(GVarMD->getOperand(I))) {
-        MIB.addFPImm(OpV); //->getValueAPF().convertToFloat());
+        MIB.addImm(convertFloatToSPIRVWord(OpV->getValueAPF().convertToFloat()));
       } else {
         report_fatal_error("Expect a float operand of the decoration");
       }
@@ -181,6 +190,7 @@ void buildOpSpirvDecorations(Register Reg, MachineIRBuilder &MIRBuilder,
           report_fatal_error("Unexpected operand of the decoration");
       }
     }
+    Dec = 0;
   }
 }
 
