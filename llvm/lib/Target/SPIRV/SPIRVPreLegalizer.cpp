@@ -819,6 +819,15 @@ static void insertInlineAsm(MachineFunction &MF, SPIRVGlobalRegistry *GR,
   insertInlineAsmProcess(MF, GR, ST, MIRBuilder, ToProcess);
 }
 
+static uint32_t convertFloatToSPIRVWord(float F) {
+  union {
+    float F;
+    uint32_t Spir;
+  } FPMaxError;
+  FPMaxError.F = F;
+  return FPMaxError.Spir;
+}
+
 static void insertSpirvDecorations(MachineFunction &MF, SPIRVGlobalRegistry *GR,
                                    MachineIRBuilder MIB) {
   SmallVector<MachineInstr *, 10> ToErase;
@@ -834,10 +843,14 @@ static void insertSpirvDecorations(MachineFunction &MF, SPIRVGlobalRegistry *GR,
                                 MI.getOperand(2).getMetadata());
       } else if (isSpvIntrinsic(MI,
                                 Intrinsic::spv_assign_fpmaxerror_decoration)) {
-        buildOpSpirvDecorations(
-            MI.getOperand(1).getReg(), MIB, MI.getOperand(2).getMetadata(),
-            static_cast<uint32_t>(
-                SPIRV::Decoration::FPMaxErrorDecorationINTEL));
+        ConstantFP *OpV = mdconst::dyn_extract<ConstantFP>(
+            MI.getOperand(2).getMetadata()->getOperand(0));
+        uint32_t OpValue =
+            convertFloatToSPIRVWord(OpV->getValueAPF().convertToFloat());
+
+        buildOpDecorate(MI.getOperand(1).getReg(), MIB,
+                        SPIRV::Decoration::FPMaxErrorDecorationINTEL,
+                        {OpValue});
       } else {
         GR->buildMemAliasingOpDecorate(MI.getOperand(1).getReg(), MIB,
                                        MI.getOperand(2).getImm(),
