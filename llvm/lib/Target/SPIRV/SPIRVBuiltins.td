@@ -69,6 +69,7 @@ def ExtendedBitOps : BuiltinGroup;
 def BindlessINTEL : BuiltinGroup;
 def TernaryBitwiseINTEL : BuiltinGroup;
 def Block2DLoadStore : BuiltinGroup;
+def AccessChain : BuiltinGroup;
 
 //===----------------------------------------------------------------------===//
 // Class defining a demangled builtin record. The information in the record
@@ -130,6 +131,9 @@ def : DemangledBuiltin<"__spirv_Select", OpenCL_std, Select, 3, 3>;
 
 // Composite Construct builtin record:
 def : DemangledBuiltin<"__spirv_CompositeConstruct", OpenCL_std, Construct, 1, 0>;
+
+// AccessChain builtin record:
+def : DemangledBuiltin<"__spirv_AccessChain", OpenCL_std, AccessChain, 1, 0>;
 
 //===----------------------------------------------------------------------===//
 // Class defining an extended builtin record used for lowering into an
