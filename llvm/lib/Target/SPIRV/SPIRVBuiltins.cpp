@@ -186,33 +186,35 @@ namespace SPIRV {
 std::string lookupBuiltinNameHelper(StringRef DemangledCall,
                                     FPDecorationId *DecorationId) {
   StringRef PassPrefix = "(anonymous namespace)::";
-  std::string BuiltinName;
-  // Itanium Demangler result may have "(anonymous namespace)::" prefix
-  if (DemangledCall.starts_with(PassPrefix))
-    BuiltinName = DemangledCall.substr(PassPrefix.size());
-  else
-    BuiltinName = DemangledCall;
-  // Extract the builtin function name and types of arguments from the call
-  // skeleton.
-  BuiltinName = BuiltinName.substr(0, BuiltinName.find('('));
-
-  // Account for possible "__spirv_ocl_" prefix in SPIR-V friendly LLVM IR
-  if (BuiltinName.rfind("__spirv_ocl_", 0) == 0)
-    BuiltinName = BuiltinName.substr(12);
+  StringRef SpvPrefix = "__spv::";
+  std::string BuiltinName = DemangledCall.str();
 
   // Check if the extracted name contains type information between angle
   // brackets. If so, the builtin is an instantiated template - needs to have
   // the information after angle brackets and return type removed.
-  std::size_t Pos1 = BuiltinName.rfind('<');
-  if (Pos1 != std::string::npos && BuiltinName.back() == '>') {
-    std::size_t Pos2 = BuiltinName.rfind(' ', Pos1);
-    if (Pos2 == std::string::npos)
-      Pos2 = 0;
-    else
-      ++Pos2;
-    BuiltinName = BuiltinName.substr(Pos2, Pos1 - Pos2);
-    BuiltinName = BuiltinName.substr(BuiltinName.find_last_of(' ') + 1);
+  std::size_t Pos = BuiltinName.find(">(");
+  if (Pos != std::string::npos) {
+    BuiltinName = BuiltinName.substr(0, BuiltinName.rfind('<', Pos));
+  } else {
+    Pos = BuiltinName.find('(');
+    if (Pos != std::string::npos)
+      BuiltinName = BuiltinName.substr(0, Pos);
   }
+  Pos = BuiltinName.rfind(' ');
+  if (Pos != std::string::npos) {
+    BuiltinName = BuiltinName.substr(Pos + 1);
+  }
+
+  // Itanium Demangler result may have "(anonymous namespace)::" or "__spv::"
+  // prefix.
+  if (BuiltinName.find(PassPrefix) == 0)
+    BuiltinName = BuiltinName.substr(PassPrefix.size());
+  else if (BuiltinName.find(SpvPrefix) == 0)
+    BuiltinName = BuiltinName.substr(SpvPrefix.size());
+
+  // Account for possible "__spirv_ocl_" prefix in SPIR-V friendly LLVM IR
+  if (BuiltinName.rfind("__spirv_ocl_", 0) == 0)
+    BuiltinName = BuiltinName.substr(12);
 
   // Check if the extracted name begins with:
   // - "__spirv_ImageSampleExplicitLod"
@@ -278,9 +280,16 @@ lookupBuiltin(StringRef DemangledCall,
               const SmallVectorImpl<Register> &Arguments) {
   std::string BuiltinName = SPIRV::lookupBuiltinNameHelper(DemangledCall);
 
+  // There could be more braces in the demangled
+  // call, so we should not rely on the first and last parentheses.
+  StringRef BuiltinArgs = DemangledCall.substr(DemangledCall.find(BuiltinName) +
+                                               BuiltinName.size());
+  size_t Pos = BuiltinArgs.find(">(");
+  Pos = Pos == std::string::npos ? BuiltinArgs.find(')') : Pos + 2;
+  BuiltinArgs = BuiltinArgs.substr(Pos, BuiltinArgs.rfind(')'));
+
+  // TODO: handle cases with multiple arguments in templated argument types.
   SmallVector<StringRef, 10> BuiltinArgumentTypes;
-  StringRef BuiltinArgs =
-      DemangledCall.slice(DemangledCall.find('(') + 1, DemangledCall.find(')'));
   BuiltinArgs.split(BuiltinArgumentTypes, ',', -1, false);
 
   // Look up the builtin in the defined set. Start with the plain demangled
@@ -2882,6 +2891,16 @@ static bool generateLoadStoreInst(const SPIRV::IncomingCall *Call,
   return true;
 }
 
+static bool generateAccessChainInst(const SPIRV::IncomingCall *Call,
+                                    MachineIRBuilder &MIRBuilder,
+                                    SPIRVGlobalRegistry *GR) {
+  Register TypeReg = GR->getSPIRVTypeID(Call->ReturnType);
+  if (Call->isSpirvOp())
+    return buildOpFromWrapper(MIRBuilder, SPIRV::OpAccessChain, Call,
+                              TypeReg);
+  return false;
+}
+
 namespace SPIRV {
 // Try to find a builtin function attributes by a demangled function name and
 // return a tuple <builtin group, op code, ext instruction number>, or a special
@@ -2955,6 +2974,8 @@ mapBuiltinToOpcode(const StringRef DemangledCall,
                            0);
   case SPIRV::KernelClock:
     return std::make_tuple(Call->Builtin->Group, SPIRV::OpReadClockKHR, 0);
+  case SPIRV::AccessChain:
+    return std::make_tuple(Call->Builtin->Group, SPIRV::OpAccessChain, 0);
   default:
     return std::make_tuple(-1, 0, 0);
   }
@@ -3061,6 +3082,8 @@ std::optional<bool> lowerBuiltin(const StringRef DemangledCall,
     return generatePredicatedLoadStoreInst(Call.get(), MIRBuilder, GR);
   case SPIRV::BlockingPipes:
     return generateBlockingPipesInst(Call.get(), MIRBuilder, GR);
+  case SPIRV::AccessChain:
+    return generateAccessChainInst(Call.get(), MIRBuilder, GR);
   }
   return false;
 }
