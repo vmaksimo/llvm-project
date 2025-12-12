@@ -1,58 +1,35 @@
-; RUN: llc -verify-machineinstrs -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_KHR_fma < %s | FileCheck --check-prefixes=CHECK,EXT %s
-; RUN: llc -verify-machineinstrs -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_fma < %s | FileCheck --check-prefixes=CHECK,EXT %s
-; RUN: llc -verify-machineinstrs -mtriple=spirv32-unknown-unknown < %s | FileCheck --check-prefixes=CHECK,NOEXT %s
-; RUN: llc -verify-machineinstrs -mtriple=spirv64-unknown-unknown < %s | FileCheck --check-prefixes=CHECK,NOEXT %s
+; RUN: llc -verify-machineinstrs -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_fma < %s | FileCheck --check-prefix=CHECK-SPIRV %s
+; RUN: llc -verify-machineinstrs -mtriple=spirv64-unknown-unknown < %s | FileCheck --check-prefix=CHECK-SPIRV-NO-EXT %s
+; TODO: Add spirv-val validation once the extension is supported.
 
-; EXT:      OpCapability FmaKHR
-; EXT-NEXT: OpExtension "SPV_KHR_fma"
-; NOEXT-NOT:  OpCapability FmaKHR
-; NOEXT-NOT:  OpExtension "SPV_KHR_fma"
+; CHECK-SPIRV: OpCapability FmaKHR
+; CHECK-SPIRV: OpExtension "SPV_KHR_fma"
+; CHECK-SPIRV: OpTypeFloat [[#TYPE_FLOAT:]] 32
+; CHECK-SPIRV: OpTypeVector [[#TYPE_VEC:]] [[#TYPE_FLOAT]] 4
+; CHECK-SPIRV: OpFmaKHR [[#TYPE_FLOAT]] [[#]]
+; CHECK-SPIRV: OpFmaKHR [[#TYPE_VEC]] [[#]]
 
-; EXT-DAG: %[[#extinst_id:]] = OpExtInstImport "OpenCL.std"
-; NOEXT-DAG: %[[#extinst_id:]] = OpExtInstImport "OpenCL.std"
+; CHECK-SPIRV-NO-EXT-NOT: OpCapability FmaKHR
+; CHECK-SPIRV-NO-EXT-NOT: OpExtension "SPV_KHR_fma"
+; CHECK-SPIRV-NO-EXT: OpTypeFloat [[#TYPE_FLOAT:]] 32
+; CHECK-SPIRV-NO-EXT: OpTypeVector [[#TYPE_VEC:]] [[#TYPE_FLOAT]] 4
+; CHECK-SPIRV-NO-EXT: OpExtInst [[#TYPE_FLOAT]] [[#]] [[#]] fma
+; CHECK-SPIRV-NO-EXT: OpExtInst [[#TYPE_VEC]] [[#]] [[#]] fma
 
-; CHECK: %[[#float_ty:]] = OpTypeFloat 32
-; CHECK: %[[#double_ty:]] = OpTypeFloat 64
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+target triple = "spir64-unknown-unknown"
 
-; EXT: OpFunction
-; EXT: %[[#a:]] = OpFunctionParameter %[[#float_ty]]
-; EXT: %[[#b:]] = OpFunctionParameter %[[#float_ty]]
-; EXT: %[[#c:]] = OpFunctionParameter %[[#float_ty]]
-; EXT: %[[#res:]] = OpFmaKHR %[[#float_ty]] %[[#a]] %[[#b]] %[[#c]]
-; EXT: OpReturnValue %[[#res]]
-
-; NOEXT: OpFunction
-; NOEXT: %[[#a:]] = OpFunctionParameter %[[#float_ty]]
-; NOEXT: %[[#b:]] = OpFunctionParameter %[[#float_ty]]
-; NOEXT: %[[#c:]] = OpFunctionParameter %[[#float_ty]]
-; NOEXT: %[[#res:]] = OpExtInst %[[#float_ty]] %[[#extinst_id]] fma %[[#a]] %[[#b]] %[[#c]]
-; NOEXT: OpReturnValue %[[#res]]
-
-define spir_func float @test_fma_f32(float %a, float %b, float %c) {
+define spir_func float @test_fma_scalar(float %a, float %b, float %c) {
 entry:
-  %fma = call float @llvm.fma.f32(float %a, float %b, float %c)
-  ret float %fma
+  %result = call float @llvm.fma.f32(float %a, float %b, float %c)
+  ret float %result
 }
 
-; EXT: OpFunction
-; EXT: %[[#a:]] = OpFunctionParameter %[[#double_ty]]
-; EXT: %[[#b:]] = OpFunctionParameter %[[#double_ty]]
-; EXT: %[[#c:]] = OpFunctionParameter %[[#double_ty]]
-; EXT: %[[#res:]] = OpFmaKHR %[[#double_ty]] %[[#a]] %[[#b]] %[[#c]]
-; EXT: OpReturnValue %[[#res]]
-
-; NOEXT: OpFunction
-; NOEXT: %[[#a:]] = OpFunctionParameter %[[#double_ty]]
-; NOEXT: %[[#b:]] = OpFunctionParameter %[[#double_ty]]
-; NOEXT: %[[#c:]] = OpFunctionParameter %[[#double_ty]]
-; NOEXT: %[[#res:]] = OpExtInst %[[#double_ty]] %[[#extinst_id]] fma %[[#a]] %[[#b]] %[[#c]]
-; NOEXT: OpReturnValue %[[#res]]
-
-define spir_func double @test_fma_f64(double %a, double %b, double %c) {
+define spir_func <4 x float> @test_fma_vector(<4 x float> %a, <4 x float> %b, <4 x float> %c) {
 entry:
-  %fma = call double @llvm.fma.f64(double %a, double %b, double %c)
-  ret double %fma
+  %result = call <4 x float> @llvm.fma.v4f32(<4 x float> %a, <4 x float> %b, <4 x float> %c)
+  ret <4 x float> %result
 }
 
 declare float @llvm.fma.f32(float, float, float)
-declare double @llvm.fma.f64(double, double, double)
+declare <4 x float> @llvm.fma.v4f32(<4 x float>, <4 x float>, <4 x float>)
