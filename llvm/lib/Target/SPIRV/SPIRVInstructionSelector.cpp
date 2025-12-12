@@ -946,6 +946,7 @@ bool SPIRVInstructionSelector::spvSelect(Register ResVReg,
   case TargetOpcode::G_STRICT_FMA:
   case TargetOpcode::G_FMA: {
     if (STI.canUseExtension(SPIRV::Extension::SPV_KHR_fma)) {
+      MachineBasicBlock &BB = *I.getParent();
       auto MIB = BuildMI(BB, I, I.getDebugLoc(), TII.get(SPIRV::OpFmaKHR))
                      .addDef(ResVReg)
                      .addUse(GR.getSPIRVTypeID(ResType))
