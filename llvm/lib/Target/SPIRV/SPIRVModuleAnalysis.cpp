@@ -1639,7 +1639,8 @@ void addInstrRequirements(const MachineInstr &MI,
         // need Int16AtomicsINTEL
         if (Op == SPIRV::OpAtomicLoad || Op == SPIRV::OpAtomicStore ||
             Op == SPIRV::OpAtomicExchange ||
-            Op == SPIRV::OpAtomicCompareExchange)
+            Op == SPIRV::OpAtomicCompareExchange ||
+            Op == SPIRV::OpAtomicCompareExchangeWeak)
           Reqs.addCapability(
               SPIRV::Capability::AtomicInt16CompareExchangeINTEL);
         else
