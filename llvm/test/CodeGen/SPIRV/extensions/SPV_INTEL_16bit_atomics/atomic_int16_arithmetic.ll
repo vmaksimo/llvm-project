@@ -7,24 +7,24 @@
 ; CHECK-DAG: Capability Int16
 ; CHECK-DAG: Capability Int16AtomicsINTEL
 ; CHECK-DAG: Extension "SPV_INTEL_16bit_atomics"
-; CHECK-DAG: %[[TyInt16:[0-9]+]] = OpTypeInt 16 0
-; CHECK-DAG: %[[TyInt16Ptr:[0-9]+]] = OpTypePointer {{[a-zA-Z]+}} %[[TyInt16]]
-; CHECK-DAG: %[[TyInt32:[0-9]+]] = OpTypeInt 32 0
-; CHECK-DAG: %[[Value5:[0-9]+]] = OpConstant %[[TyInt16]] 5{{$}}
-; CHECK-DAG: %[[Const0:[0-9]+]] = OpConstantNull %[[TyInt16]]
-; CHECK-DAG: %[[Int16Ptr:[0-9]+]] = OpVariable %[[TyInt16Ptr]] CrossWorkgroup %[[Const0]]
-; CHECK-DAG: %[[Scope:[0-9]+]] = OpConstantNull %[[TyInt32]]
-; CHECK-DAG: %[[MemSeqCst:[0-9]+]] = OpConstant %[[TyInt32]] 16{{$}}
+; CHECK-DAG: %[[#TyInt16:]] = OpTypeInt 16 0
+; CHECK-DAG: %[[#TyInt16Ptr:]] = OpTypePointer {{[a-zA-Z]+}} %[[#TyInt16]]
+; CHECK-DAG: %[[#TyInt32:]] = OpTypeInt 32 0
+; CHECK-DAG: %[[#Value5:]] = OpConstant %[[#TyInt16]] 5{{$}}
+; CHECK-DAG: %[[#Const0:]] = OpConstantNull %[[#TyInt16]]
+; CHECK-DAG: %[[#Int16Ptr:]] = OpVariable %[[#TyInt16Ptr]] CrossWorkgroup %[[#Const0]]
+; CHECK-DAG: %[[#Scope:]] = OpConstantNull %[[#TyInt32]]
+; CHECK-DAG: %[[#MemSeqCst:]] = OpConstant %[[#TyInt32]] 16{{$}}
 
-; CHECK: OpAtomicIAdd %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicISub %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicUMin %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicUMax %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicSMin %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicSMax %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicAnd %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicOr %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
-; CHECK: OpAtomicXor %[[TyInt16]] %[[Int16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value5]]
+; CHECK: OpAtomicIAdd %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicISub %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicUMin %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicUMax %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicSMin %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicSMax %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicAnd %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicOr %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
+; CHECK: OpAtomicXor %[[#TyInt16]] %[[#Int16Ptr]] %[[#Scope]] %[[#MemSeqCst]] %[[#Value5]]
 
 
 @val = common dso_local local_unnamed_addr addrspace(1) global i16 0, align 2
