@@ -1649,8 +1649,7 @@ void addInstrRequirements(const MachineInstr &MI,
         Reqs.addCapability(SPIRV::Capability::Int64Atomics);
       }
     } else if (TypeDef->getOpcode() == SPIRV::OpTypeFloat) {
-      unsigned BitWidth = TypeDef->getOperand(1).getImm();
-      if (BitWidth == 16 && isBFloat16Type(TypeDef)) {
+      if (isBFloat16Type(TypeDef)) {
         // Load, Store, Exchange with bfloat16 need AtomicBFloat16LoadStoreINTEL
         if (Op == SPIRV::OpAtomicLoad || Op == SPIRV::OpAtomicStore ||
             Op == SPIRV::OpAtomicExchange) {

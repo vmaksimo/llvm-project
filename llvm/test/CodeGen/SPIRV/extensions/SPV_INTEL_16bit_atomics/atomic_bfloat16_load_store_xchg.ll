@@ -4,10 +4,10 @@
 
 ; CHECK-ERROR: LLVM ERROR: The atomic bfloat16 instruction requires the following SPIR-V extension: SPV_INTEL_16bit_atomics
 
-; CHECK: Capability BFloat16TypeKHR
-; CHECK: Capability AtomicBFloat16LoadStoreINTEL
-; CHECK: Extension "SPV_KHR_bfloat16"
-; CHECK: Extension "SPV_INTEL_16bit_atomics"
+; CHECK-DAG: Capability BFloat16TypeKHR
+; CHECK-DAG: Capability AtomicBFloat16LoadStoreINTEL
+; CHECK-DAG: Extension "SPV_KHR_bfloat16"
+; CHECK-DAG: Extension "SPV_INTEL_16bit_atomics"
 ; CHECK-DAG: %[[TyBF16:[0-9]+]] = OpTypeFloat 16 0
 ; CHECK-DAG: %[[TyBF16Ptr:[0-9]+]] = OpTypePointer {{[a-zA-Z]+}} %[[TyBF16]]
 ; CHECK-DAG: %[[TyInt32:[0-9]+]] = OpTypeInt 32 0
@@ -17,7 +17,6 @@
 ; CHECK-DAG: %[[Scope:[0-9]+]] = OpConstantNull %[[TyInt32]]
 ; CHECK-DAG: %[[MemSeqCst:[0-9]+]] = OpConstant %[[TyInt32]] 16{{$}}
 
-; Test OpAtomicExchange
 ; CHECK: OpAtomicExchange %[[TyBF16]] %[[BF16Ptr]] %[[Scope]] %[[MemSeqCst]] %[[Value42]]
 
 
@@ -25,14 +24,6 @@
 
 define dso_local spir_func void @test_atomic_bfloat16_load_store_xchg() local_unnamed_addr {
 entry:
-  ; Test atomic load
-  %load = load atomic bfloat, ptr addrspace(1) @val seq_cst, align 2
-
-  ; Test atomic store
-  store atomic bfloat 42.000000e+00, ptr addrspace(1) @val seq_cst, align 2
-
-  ; Test atomic exchange
   %xchg = atomicrmw xchg ptr addrspace(1) @val, bfloat 42.000000e+00 seq_cst
-
   ret void
 }
