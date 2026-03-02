@@ -1626,7 +1626,9 @@ void addInstrRequirements(const MachineInstr &MI,
 
     if (TypeDef->getOpcode() == SPIRV::OpTypeInt) {
       unsigned BitWidth = TypeDef->getOperand(1).getImm();
-      if (BitWidth == 16) {
+      if (BitWidth == 64)
+        Reqs.addCapability(SPIRV::Capability::Int64Atomics);
+      else if (BitWidth == 16) {
         if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics))
           report_fatal_error(
               "16-bit integer atomic operations require the following SPIR-V "
@@ -1646,14 +1648,10 @@ void addInstrRequirements(const MachineInstr &MI,
           Reqs.addCapability(SPIRV::Capability::Int16AtomicsINTEL);
           break;
         }
-      } else if (BitWidth == 64) {
-        Reqs.addCapability(SPIRV::Capability::Int64Atomics);
       }
-    } else if (TypeDef->getOpcode() == SPIRV::OpTypeFloat && isBFloat16Type(TypeDef)) {
-      switch (Op) {
-      case SPIRV::OpAtomicLoad:
-      case SPIRV::OpAtomicStore:
-      case SPIRV::OpAtomicExchange:
+    } else if (isBFloat16Type(TypeDef)) {
+      if (Op == SPIRV::OpAtomicLoad || Op == SPIRV::OpAtomicStore ||
+          Op == SPIRV::OpAtomicExchange) {
         if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics))
           report_fatal_error(
               "The atomic bfloat16 instruction requires the following SPIR-V "
@@ -1661,7 +1659,6 @@ void addInstrRequirements(const MachineInstr &MI,
               false);
         Reqs.addExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics);
         Reqs.addCapability(SPIRV::Capability::AtomicBFloat16LoadStoreINTEL);
-        break;
       }
     }
     break;
