@@ -1622,10 +1622,46 @@ void addInstrRequirements(const MachineInstr &MI,
     assert(InstrPtr->getOperand(1).isReg() && "Unexpected operand in atomic");
     Register TypeReg = InstrPtr->getOperand(1).getReg();
     SPIRVTypeInst TypeDef = MRI.getVRegDef(TypeReg);
+    unsigned Op = MI.getOpcode();
+
     if (TypeDef->getOpcode() == SPIRV::OpTypeInt) {
       unsigned BitWidth = TypeDef->getOperand(1).getImm();
-      if (BitWidth == 64)
+      if (BitWidth == 16) {
+        if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics))
+          report_fatal_error(
+              "16-bit integer atomic operations require the following SPIR-V "
+              "extension: SPV_INTEL_16bit_atomics",
+              false);
+        Reqs.addExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics);
+
+        // Load, Store, Exchange, CompareExchange need
+        // AtomicInt16CompareExchangeINTEL Other operations (IAdd, ISub, etc.)
+        // need Int16AtomicsINTEL
+        if (Op == SPIRV::OpAtomicLoad || Op == SPIRV::OpAtomicStore ||
+            Op == SPIRV::OpAtomicExchange ||
+            Op == SPIRV::OpAtomicCompareExchange)
+          Reqs.addCapability(
+              SPIRV::Capability::AtomicInt16CompareExchangeINTEL);
+        else
+          Reqs.addCapability(SPIRV::Capability::Int16AtomicsINTEL);
+      } else if (BitWidth == 64) {
         Reqs.addCapability(SPIRV::Capability::Int64Atomics);
+      }
+    } else if (TypeDef->getOpcode() == SPIRV::OpTypeFloat) {
+      unsigned BitWidth = TypeDef->getOperand(1).getImm();
+      if (BitWidth == 16 && isBFloat16Type(TypeDef)) {
+        // Load, Store, Exchange with bfloat16 need AtomicBFloat16LoadStoreINTEL
+        if (Op == SPIRV::OpAtomicLoad || Op == SPIRV::OpAtomicStore ||
+            Op == SPIRV::OpAtomicExchange) {
+          if (!ST.canUseExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics))
+            report_fatal_error(
+                "The atomic bfloat16 instruction requires the following SPIR-V "
+                "extension: SPV_INTEL_16bit_atomics",
+                false);
+          Reqs.addExtension(SPIRV::Extension::SPV_INTEL_16bit_atomics);
+          Reqs.addCapability(SPIRV::Capability::AtomicBFloat16LoadStoreINTEL);
+        }
+      }
     }
     break;
   }

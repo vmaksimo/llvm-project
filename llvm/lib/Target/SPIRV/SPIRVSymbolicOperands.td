@@ -579,6 +579,9 @@ defm AtomicFloat16MinMaxEXT : CapabilityOperand<5616, 0, 0, [SPV_EXT_shader_atom
 defm AtomicFloat32MinMaxEXT : CapabilityOperand<5612, 0, 0, [SPV_EXT_shader_atomic_float_min_max], []>;
 defm AtomicFloat64MinMaxEXT : CapabilityOperand<5613, 0, 0, [SPV_EXT_shader_atomic_float_min_max], []>;
 defm AtomicBFloat16MinMaxINTEL : CapabilityOperand<6256, 0, 0, [SPV_INTEL_16bit_atomics], []>;
+defm AtomicInt16CompareExchangeINTEL : CapabilityOperand<6260, 0, 0, [SPV_INTEL_16bit_atomics], [Int16]>;
+defm Int16AtomicsINTEL : CapabilityOperand<6261, 0, 0, [SPV_INTEL_16bit_atomics], [AtomicInt16CompareExchangeINTEL]>;
+defm AtomicBFloat16LoadStoreINTEL : CapabilityOperand<6262, 0, 0, [SPV_INTEL_16bit_atomics], []>;
 defm AtomicFloat16VectorNV : CapabilityOperand<5404, 0, 0, [SPV_NV_shader_atomic_fp16_vector], []>;
 defm VariableLengthArrayINTEL : CapabilityOperand<5817, 0, 0, [SPV_INTEL_variable_length_array], []>;
 defm GroupUniformArithmeticKHR : CapabilityOperand<6400, 0, 0, [SPV_KHR_uniform_group_instructions], []>;
