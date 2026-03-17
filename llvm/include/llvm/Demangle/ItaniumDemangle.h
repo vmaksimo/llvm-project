@@ -4174,8 +4174,17 @@ Node *AbstractManglingParser<Derived, Alloc>::parseQualifiedType() {
   Node *Ty = getDerived().parseType();
   if (Ty == nullptr)
     return nullptr;
-  if (Quals != QualNone)
+  if (Quals != QualNone) {
     Ty = make<QualType>(Ty, Quals);
+    // CV-qualified types are substitutable per the Itanium ABI spec. When
+    // parseQualifiedType() is called recursively (e.g., from within another
+    // parseQualifiedType() for a vendor-extended type like U3AS3VU7_Atomici),
+    // the caller does not go through parseType()'s Subs.push_back path, so we
+    // must add the QualType node to the substitution table here. When called
+    // directly from parseType() case 'r'/'V'/'K', that case returns early to
+    // avoid double-adding.
+    Subs.push_back(Ty);
+  }
   return Ty;
 }
 
@@ -4220,7 +4229,11 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType() {
       Result = getDerived().parseFunctionType();
       break;
     }
-    DEMANGLE_FALLTHROUGH;
+    // CV-qualified types are substitutable per the Itanium ABI spec.
+    // parseQualifiedType() adds the QualType node to Subs internally when
+    // it processes CV qualifiers, so return directly here to avoid a
+    // double-add that would occur if we fell through to case 'U'.
+    return getDerived().parseQualifiedType();
   }
   case 'U': {
     Result = getDerived().parseQualifiedType();
