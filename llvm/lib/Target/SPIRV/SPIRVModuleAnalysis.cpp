@@ -2783,6 +2783,15 @@ static void collectReqs(const Module &M, SPIRV::ModuleAnalysisInfo &MAI,
   }
 }
 
+static bool isFullyFast(const MachineInstr &I) {
+  constexpr uint32_t FastFlags =
+      MachineInstr::MIFlag::FmNoNans | MachineInstr::MIFlag::FmNoInfs |
+      MachineInstr::MIFlag::FmNsz | MachineInstr::MIFlag::FmArcp |
+      MachineInstr::MIFlag::FmContract | MachineInstr::MIFlag::FmAfn |
+      MachineInstr::MIFlag::FmReassoc;
+  return (I.getFlags() & FastFlags) == FastFlags;
+}
+
 static unsigned getFastMathFlags(const MachineInstr &I,
                                  const SPIRVSubtarget &ST) {
   unsigned Flags = SPIRV::FPFastMathMode::None;
@@ -2803,16 +2812,13 @@ static unsigned getFastMathFlags(const MachineInstr &I,
       // LLVM reassoc maps to SPIRV transform, see
       // https://github.com/KhronosGroup/SPIRV-Registry/issues/326 for details.
       // Because we are enabling AllowTransform, we must enable AllowReassoc and
-      // AllowContract too, as required by SPIRV spec. Also, we used to map
-      // MIFlag::FmReassoc to FPFastMathMode::Fast, which now should instead by
-      // replaced by turning all the other bits instead. Therefore, we're
-      // enabling every bit here except None and Fast.
-      Flags |= SPIRV::FPFastMathMode::NotNaN | SPIRV::FPFastMathMode::NotInf |
-               SPIRV::FPFastMathMode::NSZ | SPIRV::FPFastMathMode::AllowRecip |
-               SPIRV::FPFastMathMode::AllowTransform |
+      // AllowContract too, as required by SPIRV spec.
+      Flags |= SPIRV::FPFastMathMode::AllowTransform |
                SPIRV::FPFastMathMode::AllowReassoc |
                SPIRV::FPFastMathMode::AllowContract;
-    else
+    else if (isFullyFast(I))
+      // Consumers treat Fast as LLVM `fast`, which implies nnan and ninf, so it
+      // is only emitted when every fast-math flag is set.
       Flags |= SPIRV::FPFastMathMode::Fast;
   }
 
