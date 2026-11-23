@@ -27,6 +27,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicsSPIRV.h"
 #include "llvm/Support/MathExtras.h"
+#include <numeric>
 
 #define DEBUG_TYPE "spirv-prelegalizer"
 
@@ -550,6 +551,8 @@ struct NarrowWideningInfo {
   SmallVector<MachineInstr *> SignSensitiveWorklist;
   // Keyed by instruction, not vreg: G_TRUNC handling can replace the source.
   SmallVector<std::pair<MachineInstr *, unsigned>> BitCountWorklist;
+  // spv_bitcast between a vector and a narrow scalar, with the scalar's width.
+  SmallVector<std::pair<MachineInstr *, unsigned>> BitcastWorklist;
 };
 
 // G_CTTZ_ZERO_POISON is absent because its low bits are known non-zero, G_CTLS
@@ -581,6 +584,16 @@ recordNarrowOperandWidths(MachineFunction &MF, const MachineRegisterInfo &MRI) {
   };
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
+      if (isSpvIntrinsic(MI, Intrinsic::spv_bitcast)) {
+        Register DstReg = MI.getOperand(0).getReg();
+        Register SrcReg = MI.getOperand(2).getReg();
+        Register ScalarReg = MRI.getType(SrcReg).isVector() ? DstReg : SrcReg;
+        Register VecReg = ScalarReg == DstReg ? SrcReg : DstReg;
+        if (MRI.getType(VecReg).isVector())
+          if (std::optional<unsigned> W = getNarrowScalarWidth(ScalarReg, MRI))
+            Info.BitcastWorklist.emplace_back(&MI, *W);
+        continue;
+      }
       if (isWidthSensitiveBitCountOp(MI.getOpcode())) {
         if (std::optional<unsigned> W =
                 getNarrowScalarWidth(MI.getOperand(1).getReg(), MRI))
@@ -736,6 +749,69 @@ static void widenBitCountOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
   }
 }
 
+// A narrow scalar is retyped to a pow2 width, but a vector bitcast to or from
+// it keeps its size. Bitcast through a vector padded to the widened width:
+//   %i:s48 = spv_bitcast %v:<3 x s16>
+// becomes
+//   %p:<4 x s16> = G_SHUFFLE_VECTOR %v, %v, shufflemask(0, 1, 2, undef)
+//   %w:s64 = spv_bitcast %p
+//   %i:s64 = G_AND %w, 0xFFFFFFFFFFFF
+// and
+//   %v:<3 x s16> = spv_bitcast %i:s48
+// becomes
+//   %w:<4 x s16> = spv_bitcast %i:s64
+//   %v:<3 x s16> = G_SHUFFLE_VECTOR %w, %w, shufflemask(0, 1, 2)
+static void widenBitcastOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
+                            MachineRegisterInfo &MRI,
+                            const NarrowWideningInfo &Info) {
+  for (auto [MI, OldWidth] : Info.BitcastWorklist) {
+    Register DstReg = MI->getOperand(0).getReg();
+    Register SrcReg = MI->getOperand(2).getReg();
+    bool ToScalar = MRI.getType(SrcReg).isVector();
+    Register VecReg = ToScalar ? SrcReg : DstReg;
+    LLT VecTy = MRI.getType(VecReg);
+    unsigned NewWidth = widenBitWidthToNextPow2(OldWidth);
+    unsigned EltWidth = VecTy.getScalarSizeInBits();
+    if (NewWidth % EltWidth)
+      continue;
+
+    // A bitcast result only gets its SPIR-V type from spv_assign_type later.
+    const Type *VecLLVMTy = nullptr;
+    if (MachineInstr *AssignMI = findAssignTypeInstr(VecReg, &MRI))
+      VecLLVMTy = getMDOperandAsType(AssignMI->getOperand(2).getMetadata(), 0);
+    else if (SPIRVTypeInst VecSpvTy = GR->getSPIRVTypeForVReg(VecReg))
+      VecLLVMTy = GR->getTypeForSPIRVType(VecSpvTy);
+    auto *VecFixedTy = dyn_cast_or_null<FixedVectorType>(VecLLVMTy);
+    if (!VecFixedTy)
+      continue;
+
+    MIB.setInstrAndDebugLoc(*MI);
+    SPIRVTypeInst WideVecSpvTy = GR->getOrCreateSPIRVType(
+        FixedVectorType::get(VecFixedTy->getElementType(), NewWidth / EltWidth),
+        MIB, SPIRV::AccessQualifier::ReadWrite, /*EmitIR=*/true);
+    Register WideVec = createVirtualRegister(WideVecSpvTy, GR, MIB);
+    SmallVector<int> Mask(VecTy.getNumElements());
+    std::iota(Mask.begin(), Mask.end(), 0);
+
+    if (ToScalar) {
+      Mask.resize(NewWidth / EltWidth, -1);
+      MIB.buildShuffleVector(WideVec, SrcReg, SrcReg, Mask);
+      MI->getOperand(2).setReg(WideVec);
+      widenScalarType(DstReg, MRI);
+      Register WideInt = createVirtualRegister(
+          GR->getOrCreateSPIRVIntegerType(NewWidth, MIB), GR, MIB);
+      MI->getOperand(0).setReg(WideInt);
+      setInsertPtAfterDef(MIB, MI);
+      MIB.buildZExtInReg(DstReg, WideInt, OldWidth);
+    } else {
+      widenScalarType(SrcReg, MRI);
+      MI->getOperand(0).setReg(WideVec);
+      setInsertPtAfterDef(MIB, MI);
+      MIB.buildShuffleVector(DstReg, WideVec, WideVec, Mask);
+    }
+  }
+}
+
 static void
 generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
                      MachineIRBuilder MIB,
@@ -851,6 +927,7 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
 
     widenSignSensitiveOps(MF, GR, MIB, MRI, WideningInfo);
     widenBitCountOps(GR, MIB, MRI, WideningInfo);
+    widenBitcastOps(GR, MIB, MRI, WideningInfo);
   }
 
   for (MachineBasicBlock *MBB : post_order(&MF)) {
