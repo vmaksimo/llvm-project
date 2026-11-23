@@ -1,6 +1,7 @@
 ; Bitcasts between vectors and integers of a non-standard width. Without
 ; SPV_ALTERA_arbitrary_precision_integers the integer is emitted as the next
-; wider integer type, so the bitcast goes through a vector padded to that width.
+; wider integer type, so the bitcast goes through an integer vector padded to
+; that width.
 
 ; RUN: llc -O0 -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-NOEXT
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
@@ -10,7 +11,9 @@
 ; CHECK-NOEXT-NOT: OpTypeInt 24
 ; CHECK-NOEXT-DAG: %[[#Half:]] = OpTypeFloat 16
 ; CHECK-NOEXT-DAG: %[[#Vec3Half:]] = OpTypeVector %[[#Half]] 3
-; CHECK-NOEXT-DAG: %[[#Vec4Half:]] = OpTypeVector %[[#Half]] 4
+; CHECK-NOEXT-DAG: %[[#Int16:]] = OpTypeInt 16 0
+; CHECK-NOEXT-DAG: %[[#Vec3Int16:]] = OpTypeVector %[[#Int16]] 3
+; CHECK-NOEXT-DAG: %[[#Vec4Int16:]] = OpTypeVector %[[#Int16]] 4
 ; CHECK-NOEXT-DAG: %[[#Int64:]] = OpTypeInt 64 0
 ; CHECK-NOEXT-DAG: %[[#Int8:]] = OpTypeInt 8 0
 ; CHECK-NOEXT-DAG: %[[#Vec3Int8:]] = OpTypeVector %[[#Int8]] 3
@@ -24,7 +27,8 @@
 
 ; CHECK-NOEXT-LABEL: Begin function vec_to_int48
 ; CHECK-NOEXT: %[[#V:]] = OpFunctionParameter %[[#Vec3Half]]
-; CHECK-NOEXT: %[[#Pad:]] = OpVectorShuffle %[[#Vec4Half]] %[[#V]] %[[#V]] 0 1 2 0xFFFFFFFF
+; CHECK-NOEXT: %[[#VI:]] = OpBitcast %[[#Vec3Int16]] %[[#V]]
+; CHECK-NOEXT: %[[#Pad:]] = OpVectorShuffle %[[#Vec4Int16]] %[[#VI]] %[[#VI]] 0 1 2 0xFFFFFFFF
 ; CHECK-NOEXT: %[[#Wide:]] = OpBitcast %[[#Int64]] %[[#Pad]]
 ; CHECK-NOEXT: %[[#]] = OpBitwiseAnd %[[#Int64]] %[[#Wide]] %[[#Mask48]]
 ; CHECK-EXT-LABEL: Begin function vec_to_int48
@@ -39,8 +43,9 @@ entry:
 ; CHECK-NOEXT-LABEL: Begin function int48_to_vec
 ; CHECK-NOEXT: %[[#X:]] = OpFunctionParameter %[[#Int64]]
 ; CHECK-NOEXT: %[[#Masked:]] = OpBitwiseAnd %[[#Int64]] %[[#X]] %[[#Mask48]]
-; CHECK-NOEXT: %[[#WideVec:]] = OpBitcast %[[#Vec4Half]] %[[#Masked]]
-; CHECK-NOEXT: %[[#]] = OpVectorShuffle %[[#Vec3Half]] %[[#WideVec]] %[[#WideVec]] 0 1 2
+; CHECK-NOEXT: %[[#WideVec:]] = OpBitcast %[[#Vec4Int16]] %[[#Masked]]
+; CHECK-NOEXT: %[[#VI2:]] = OpVectorShuffle %[[#Vec3Int16]] %[[#WideVec]] %[[#WideVec]] 0 1 2
+; CHECK-NOEXT: %[[#]] = OpBitcast %[[#Vec3Half]] %[[#VI2]]
 ; CHECK-EXT-LABEL: Begin function int48_to_vec
 ; CHECK-EXT: OpBitcast %[[#]] %[[#]]
 define spir_func <3 x half> @int48_to_vec(i64 %x) {
@@ -52,7 +57,8 @@ entry:
 
 ; CHECK-NOEXT-LABEL: Begin function vec_to_int24
 ; CHECK-NOEXT: %[[#V8:]] = OpFunctionParameter %[[#Vec3Int8]]
-; CHECK-NOEXT: %[[#Pad8:]] = OpVectorShuffle %[[#Vec4Int8]] %[[#V8]] %[[#V8]] 0 1 2 0xFFFFFFFF
+; CHECK-NOEXT-NEXT: OpLabel
+; CHECK-NOEXT-NEXT: %[[#Pad8:]] = OpVectorShuffle %[[#Vec4Int8]] %[[#V8]] %[[#V8]] 0 1 2 0xFFFFFFFF
 ; CHECK-NOEXT: %[[#Wide32:]] = OpBitcast %[[#Int32]] %[[#Pad8]]
 ; CHECK-NOEXT: %[[#]] = OpBitwiseAnd %[[#Int32]] %[[#Wide32]] %[[#Mask24]]
 ; CHECK-EXT-LABEL: Begin function vec_to_int24
@@ -68,7 +74,8 @@ entry:
 ; CHECK-NOEXT: %[[#X32:]] = OpFunctionParameter %[[#Int32]]
 ; CHECK-NOEXT: %[[#Masked32:]] = OpBitwiseAnd %[[#Int32]] %[[#X32]] %[[#Mask24]]
 ; CHECK-NOEXT: %[[#WideVec8:]] = OpBitcast %[[#Vec4Int8]] %[[#Masked32]]
-; CHECK-NOEXT: %[[#]] = OpVectorShuffle %[[#Vec3Int8]] %[[#WideVec8]] %[[#WideVec8]] 0 1 2
+; CHECK-NOEXT: %[[#Res8:]] = OpVectorShuffle %[[#Vec3Int8]] %[[#WideVec8]] %[[#WideVec8]] 0 1 2
+; CHECK-NOEXT-NEXT: OpReturnValue %[[#Res8]]
 ; CHECK-EXT-LABEL: Begin function int24_to_vec
 ; CHECK-EXT: OpBitcast %[[#]] %[[#]]
 define spir_func <3 x i8> @int24_to_vec(i32 %x) {

@@ -16,6 +16,7 @@
 #include "SPIRVSubtarget.h"
 #include "SPIRVUtils.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelValueTracking.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
@@ -27,7 +28,6 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicsSPIRV.h"
 #include "llvm/Support/MathExtras.h"
-#include <numeric>
 
 #define DEBUG_TYPE "spirv-prelegalizer"
 
@@ -587,11 +587,15 @@ recordNarrowOperandWidths(MachineFunction &MF, const MachineRegisterInfo &MRI) {
       if (isSpvIntrinsic(MI, Intrinsic::spv_bitcast)) {
         Register DstReg = MI.getOperand(0).getReg();
         Register SrcReg = MI.getOperand(2).getReg();
-        Register ScalarReg = MRI.getType(SrcReg).isVector() ? DstReg : SrcReg;
-        Register VecReg = ScalarReg == DstReg ? SrcReg : DstReg;
-        if (MRI.getType(VecReg).isVector())
+        bool SrcIsVector = MRI.getType(SrcReg).isVector();
+        bool DstIsVector = MRI.getType(DstReg).isVector();
+        bool VectorToScalar = SrcIsVector && !DstIsVector;
+        bool ScalarToVector = !SrcIsVector && DstIsVector;
+        if (VectorToScalar || ScalarToVector) {
+          Register ScalarReg = VectorToScalar ? DstReg : SrcReg;
           if (std::optional<unsigned> W = getNarrowScalarWidth(ScalarReg, MRI))
             Info.BitcastWorklist.emplace_back(&MI, *W);
+        }
         continue;
       }
       if (isWidthSensitiveBitCountOp(MI.getOpcode())) {
@@ -750,53 +754,58 @@ static void widenBitCountOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
 }
 
 // A narrow scalar is retyped to a pow2 width, but a vector bitcast to or from
-// it keeps its size. Bitcast through a vector padded to the widened width:
+// it keeps its size. Bitcast through an integer vector padded to the widened
+// width:
 //   %i:s48 = spv_bitcast %v:<3 x s16>
 // becomes
-//   %p:<4 x s16> = G_SHUFFLE_VECTOR %v, %v, shufflemask(0, 1, 2, undef)
+//   %vi:<3 x s16> = spv_bitcast %v               ; integer elements
+//   %p:<4 x s16> = G_SHUFFLE_VECTOR %vi, %vi, shufflemask(0, 1, 2, undef)
 //   %w:s64 = spv_bitcast %p
 //   %i:s64 = G_AND %w, 0xFFFFFFFFFFFF
 // and
 //   %v:<3 x s16> = spv_bitcast %i:s48
 // becomes
 //   %w:<4 x s16> = spv_bitcast %i:s64
-//   %v:<3 x s16> = G_SHUFFLE_VECTOR %w, %w, shufflemask(0, 1, 2)
+//   %vi:<3 x s16> = G_SHUFFLE_VECTOR %w, %w, shufflemask(0, 1, 2)
+//   %v:<3 x s16> = spv_bitcast %vi
+// The extra bitcasts turn into copies when the vector elements are integers.
 static void widenBitcastOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
                             MachineRegisterInfo &MRI,
                             const NarrowWideningInfo &Info) {
   for (auto [MI, OldWidth] : Info.BitcastWorklist) {
     Register DstReg = MI->getOperand(0).getReg();
     Register SrcReg = MI->getOperand(2).getReg();
-    bool ToScalar = MRI.getType(SrcReg).isVector();
-    Register VecReg = ToScalar ? SrcReg : DstReg;
-    LLT VecTy = MRI.getType(VecReg);
+    bool VectorToScalar = MRI.getType(SrcReg).isVector();
+    LLT VecTy = MRI.getType(VectorToScalar ? SrcReg : DstReg);
     unsigned NewWidth = widenBitWidthToNextPow2(OldWidth);
     unsigned EltWidth = VecTy.getScalarSizeInBits();
     if (NewWidth % EltWidth)
       continue;
-
-    // A bitcast result only gets its SPIR-V type from spv_assign_type later.
-    const Type *VecLLVMTy = nullptr;
-    if (MachineInstr *AssignMI = findAssignTypeInstr(VecReg, &MRI))
-      VecLLVMTy = getMDOperandAsType(AssignMI->getOperand(2).getMetadata(), 0);
-    else if (SPIRVTypeInst VecSpvTy = GR->getSPIRVTypeForVReg(VecReg))
-      VecLLVMTy = GR->getTypeForSPIRVType(VecSpvTy);
-    auto *VecFixedTy = dyn_cast_or_null<FixedVectorType>(VecLLVMTy);
-    if (!VecFixedTy)
-      continue;
+    unsigned NumElts = VecTy.getNumElements();
+    unsigned WideNumElts = NewWidth / EltWidth;
 
     MIB.setInstrAndDebugLoc(*MI);
-    SPIRVTypeInst WideVecSpvTy = GR->getOrCreateSPIRVType(
-        FixedVectorType::get(VecFixedTy->getElementType(), NewWidth / EltWidth),
-        MIB, SPIRV::AccessQualifier::ReadWrite, /*EmitIR=*/true);
-    Register WideVec = createVirtualRegister(WideVecSpvTy, GR, MIB);
-    SmallVector<int> Mask(VecTy.getNumElements());
-    std::iota(Mask.begin(), Mask.end(), 0);
+    auto CreateIntVecReg = [&](unsigned N) {
+      Type *EltTy =
+          IntegerType::get(MIB.getMF().getFunction().getContext(), EltWidth);
+      SPIRVTypeInst VecSpvTy = GR->getOrCreateSPIRVType(
+          FixedVectorType::get(EltTy, N), MIB,
+          SPIRV::AccessQualifier::ReadWrite, /*EmitIR=*/true);
+      return createVirtualRegister(VecSpvTy, GR, MIB);
+    };
+    auto BuildBitcast = [&](Register Res, Register Op) {
+      MIB.buildIntrinsic(Intrinsic::spv_bitcast, ArrayRef<Register>{Res})
+          .addUse(Op);
+    };
+    Register IntVec = CreateIntVecReg(NumElts);
+    Register WideIntVec = CreateIntVecReg(WideNumElts);
 
-    if (ToScalar) {
-      Mask.resize(NewWidth / EltWidth, -1);
-      MIB.buildShuffleVector(WideVec, SrcReg, SrcReg, Mask);
-      MI->getOperand(2).setReg(WideVec);
+    if (VectorToScalar) {
+      BuildBitcast(IntVec, SrcReg);
+      MIB.buildShuffleVector(
+          WideIntVec, IntVec, IntVec,
+          createSequentialMask(0, NumElts, WideNumElts - NumElts));
+      MI->getOperand(2).setReg(WideIntVec);
       widenScalarType(DstReg, MRI);
       Register WideInt = createVirtualRegister(
           GR->getOrCreateSPIRVIntegerType(NewWidth, MIB), GR, MIB);
@@ -805,9 +814,11 @@ static void widenBitcastOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
       MIB.buildZExtInReg(DstReg, WideInt, OldWidth);
     } else {
       widenScalarType(SrcReg, MRI);
-      MI->getOperand(0).setReg(WideVec);
+      MI->getOperand(0).setReg(WideIntVec);
       setInsertPtAfterDef(MIB, MI);
-      MIB.buildShuffleVector(DstReg, WideVec, WideVec, Mask);
+      MIB.buildShuffleVector(IntVec, WideIntVec, WideIntVec,
+                             createSequentialMask(0, NumElts, 0));
+      BuildBitcast(DstReg, IntVec);
     }
   }
 }
