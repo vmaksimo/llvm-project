@@ -777,7 +777,8 @@ static void widenVectorBitcastOps(SPIRVGlobalRegistry *GR,
       continue;
     unsigned NewWidth = widenBitWidthToNextPow2(OldWidth);
     unsigned EltWidth = VecTy.getScalarSizeInBits();
-    if (NewWidth % EltWidth)
+    // Narrow elements are widened one by one, which changes the vector layout.
+    if (widenBitWidthToNextPow2(EltWidth) != EltWidth || NewWidth % EltWidth)
       continue;
     unsigned NumElts = VecTy.getNumElements();
     unsigned WideNumElts = NewWidth / EltWidth;
