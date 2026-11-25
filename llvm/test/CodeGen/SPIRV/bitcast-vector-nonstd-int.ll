@@ -84,3 +84,13 @@ entry:
   %v = bitcast i24 %t to <3 x i8>
   ret <3 x i8> %v
 }
+
+; A bitcast between two non-standard width scalars is left alone.
+; CHECK-NOEXT-LABEL: Begin function int48_to_int48
+; CHECK-EXT-LABEL: Begin function int48_to_int48
+define spir_func i8 @int48_to_int48(i48 %x) {
+entry:
+  %b = bitcast i48 %x to i48
+  %t = trunc i48 %b to i8
+  ret i8 %t
+}

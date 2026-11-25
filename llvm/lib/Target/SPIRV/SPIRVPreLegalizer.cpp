@@ -585,17 +585,12 @@ recordNarrowOperandWidths(MachineFunction &MF, const MachineRegisterInfo &MRI) {
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
       if (isSpvIntrinsic(MI, Intrinsic::spv_bitcast)) {
-        Register DstReg = MI.getOperand(0).getReg();
-        Register SrcReg = MI.getOperand(2).getReg();
-        bool SrcIsVector = MRI.getType(SrcReg).isVector();
-        bool DstIsVector = MRI.getType(DstReg).isVector();
-        bool VectorToScalar = SrcIsVector && !DstIsVector;
-        bool ScalarToVector = !SrcIsVector && DstIsVector;
-        if (VectorToScalar || ScalarToVector) {
-          Register ScalarReg = VectorToScalar ? DstReg : SrcReg;
-          if (std::optional<unsigned> W = getNarrowScalarWidth(ScalarReg, MRI))
-            Info.BitcastWorklist.emplace_back(&MI, *W);
-        }
+        // getNarrowScalarWidth rejects the vector side.
+        Register ScalarReg = MRI.getType(MI.getOperand(2).getReg()).isVector()
+                                 ? MI.getOperand(0).getReg()
+                                 : MI.getOperand(2).getReg();
+        if (std::optional<unsigned> W = getNarrowScalarWidth(ScalarReg, MRI))
+          Info.BitcastWorklist.emplace_back(&MI, *W);
         continue;
       }
       if (isWidthSensitiveBitCountOp(MI.getOpcode())) {
@@ -777,6 +772,8 @@ static void widenBitcastOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
     Register SrcReg = MI->getOperand(2).getReg();
     bool VectorToScalar = MRI.getType(SrcReg).isVector();
     LLT VecTy = MRI.getType(VectorToScalar ? SrcReg : DstReg);
+    if (!VecTy.isVector())
+      continue;
     unsigned NewWidth = widenBitWidthToNextPow2(OldWidth);
     unsigned EltWidth = VecTy.getScalarSizeInBits();
     if (NewWidth % EltWidth)
