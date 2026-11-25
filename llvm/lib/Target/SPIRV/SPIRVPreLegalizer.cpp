@@ -552,7 +552,7 @@ struct NarrowWideningInfo {
   // Keyed by instruction, not vreg: G_TRUNC handling can replace the source.
   SmallVector<std::pair<MachineInstr *, unsigned>> BitCountWorklist;
   // spv_bitcast between a vector and a narrow scalar, with the scalar's width.
-  SmallVector<std::pair<MachineInstr *, unsigned>> BitcastWorklist;
+  SmallVector<std::pair<MachineInstr *, unsigned>> VectorBitcastWorklist;
 };
 
 // G_CTTZ_ZERO_POISON is absent because its low bits are known non-zero, G_CTLS
@@ -585,12 +585,11 @@ recordNarrowOperandWidths(MachineFunction &MF, const MachineRegisterInfo &MRI) {
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
       if (isSpvIntrinsic(MI, Intrinsic::spv_bitcast)) {
-        // getNarrowScalarWidth rejects the vector side.
         Register ScalarReg = MRI.getType(MI.getOperand(2).getReg()).isVector()
                                  ? MI.getOperand(0).getReg()
                                  : MI.getOperand(2).getReg();
         if (std::optional<unsigned> W = getNarrowScalarWidth(ScalarReg, MRI))
-          Info.BitcastWorklist.emplace_back(&MI, *W);
+          Info.VectorBitcastWorklist.emplace_back(&MI, *W);
         continue;
       }
       if (isWidthSensitiveBitCountOp(MI.getOpcode())) {
@@ -748,9 +747,9 @@ static void widenBitCountOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
   }
 }
 
-// A narrow scalar is retyped to a pow2 width, but a vector bitcast to or from
-// it keeps its size. Bitcast through an integer vector padded to the widened
-// width:
+// Widen bitcasts between a vector and a narrow scalar. The scalar is retyped to
+// a pow2 width but the vector keeps its size, so bitcast through an integer
+// vector padded to the widened width:
 //   %i:s48 = spv_bitcast %v:<3 x s16>
 // becomes
 //   %vi:<3 x s16> = spv_bitcast %v               ; integer elements
@@ -764,14 +763,16 @@ static void widenBitCountOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
 //   %vi:<3 x s16> = G_SHUFFLE_VECTOR %w, %w, shufflemask(0, 1, 2)
 //   %v:<3 x s16> = spv_bitcast %vi
 // The extra bitcasts turn into copies when the vector elements are integers.
-static void widenBitcastOps(SPIRVGlobalRegistry *GR, MachineIRBuilder &MIB,
-                            MachineRegisterInfo &MRI,
-                            const NarrowWideningInfo &Info) {
-  for (auto [MI, OldWidth] : Info.BitcastWorklist) {
+static void widenVectorBitcastOps(SPIRVGlobalRegistry *GR,
+                                  MachineIRBuilder &MIB,
+                                  MachineRegisterInfo &MRI,
+                                  const NarrowWideningInfo &Info) {
+  for (auto [MI, OldWidth] : Info.VectorBitcastWorklist) {
     Register DstReg = MI->getOperand(0).getReg();
     Register SrcReg = MI->getOperand(2).getReg();
     bool VectorToScalar = MRI.getType(SrcReg).isVector();
     LLT VecTy = MRI.getType(VectorToScalar ? SrcReg : DstReg);
+    // Narrow scalar-to-scalar bitcasts become copies once widened.
     if (!VecTy.isVector())
       continue;
     unsigned NewWidth = widenBitWidthToNextPow2(OldWidth);
@@ -935,7 +936,7 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
 
     widenSignSensitiveOps(MF, GR, MIB, MRI, WideningInfo);
     widenBitCountOps(GR, MIB, MRI, WideningInfo);
-    widenBitcastOps(GR, MIB, MRI, WideningInfo);
+    widenVectorBitcastOps(GR, MIB, MRI, WideningInfo);
   }
 
   for (MachineBasicBlock *MBB : post_order(&MF)) {
